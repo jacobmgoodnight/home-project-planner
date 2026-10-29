@@ -17,6 +17,21 @@ The goal is to make the next useful household task obvious—not to build an ela
 
 The main navigation intentionally has **four destinations**: **Today**, **Projects**, **Maintenance**, and **Backup & data**. Detailed tools are grouped inside them rather than scattered across more tabs.
 
+### Reliability & usability release — October 29, 2026
+
+This release follows a focused app audit ([pull request](https://github.com/jacobmgoodnight/home-project-planner/pull/1)):
+
+- **Your other apps' caches are protected.** The service worker now cleans up only Home Project Planner cache versions and intercepts only this app's scoped resources; offline app loading is preserved.
+- **"Saved locally" means the latest write committed.** Consecutive edits are serialized with revision-aware status, a visible Retry save action on failure and a browser-close warning when there are unsaved changes.
+- **Cloud conflicts no longer silently overwrite records.** When both devices changed, auto-sync pauses, shows which projects/maintenance/equipment differ and lets you download local and cloud JSON copies before explicitly choosing one. Cloud restores are committed locally before the cloud version is marked accepted.
+- **Global search** from the existing header finds project actions, equipment model/serial numbers, maintenance, part SKUs and attachment names entirely on-device.
+- **Simpler everyday workflow:** the project Plan screen foregrounds name, date, next action and status; ranking and other advanced details are collapsible. Today groups optional unscheduled routines and actual supply shortages under one expandable section.
+- **Guided setup** offers optional first due dates, adjustable month intervals, equipment links and real part/size details. Leaving those fields blank never invents service history.
+- **Safer backups:** before replacing/clearing a local workspace or loading demo data, the app saves one recoverable previous copy in IndexedDB. This is not a substitute for exported backups and it can fail if the device is out of storage; when it fails the destructive action is cancelled.
+- **Project filter/dependencies:** "Under $100" considers known remaining estimates without requiring a set budget; unestimated projects aren't incorrectly declared free. Circular dependencies are prevented.
+
+No new top-level navigation sections, Supabase migrations, or cloud-schema changes were introduced. [Changelog](CHANGELOG.md) lists verification and remaining limitations.
+
 ## What it does
 
 | Where | Capabilities |

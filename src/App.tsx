@@ -3,7 +3,7 @@ import type { ChangeEvent, ReactNode } from 'react';
 import type { Attachment, Database, DecisionOption, Expense, FutureCost, MaintenanceItem, Material, Project, Quote, ServiceEntry } from './types';
 import { CATEGORIES, STATUSES, emptyDatabase, newEquipment, newMaintenance, newProject, today, uid } from './types';
 import { money, fromDollars, dollars, clamp, projectCost, decisionCost, sortProjects, priority, dueMaintenance, dayDiff } from './logic.mjs';
-import { attachmentFromFile, downloadBackup, load, save, validateBackup } from './storage';
+import { attachmentFromFile, downloadBackup, load, save, validateBackup, saveRecoverySnapshot, loadRecoverySnapshot } from './storage';
 import { demoData } from './demo';
 import { MAINTENANCE_PRESETS,createFromPreset,isPresetInstalled } from './maintenance-presets';
 import { MaintenancePartsEditor,MaintenanceShoppingPanel } from './MaintenanceParts';
@@ -15,10 +15,16 @@ import { TodayDashboard } from './TodayDashboard';
 import { HomeReminders } from './HomeReminders';
 import { HouseholdSync } from './HouseholdSync';
 import { pauseSyncForLocalReplace } from './cloud-client';
+import { createSaveQueue } from './save-queue.mjs';
+import { isUnderBudgetRemaining,wouldCreateDependencyCycle } from './project-filters.mjs';
+import type { SaveQueue } from './save-queue.mjs';
 import { GuidedSetup } from './GuidedSetup';
+import type { SetupRoutine } from './GuidedSetup';
 import { QuickCapture } from './QuickCapture';
 import type { QuickCaptureRequest } from './QuickCapture';
 import { HomeReference } from './HomeReference';
+import { HomeSearch } from './HomeSearch';
+import type { SearchResult } from './home-search.mjs';
 import { BackupTransfer } from './BackupTransfer';
 import { mergeNewRecords } from './safe-transfer.mjs';
 import type { CompletionDetails } from './maintenance-enhancements.mjs';
@@ -59,6 +65,8 @@ export default function App(){
   const [fatal,setFatal]=useState('');
   const [saveError,setSaveError]=useState('');
   const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+  const [hasRecovery,setHasRecovery]=useState(false);
   const [page,setPage]=useState<Page>(()=>new URLSearchParams(location.search).has('equipment')?'maintenance':'overview');
   const [equipmentDeepLink]=useState(()=>new URLSearchParams(location.search).get('equipment')||'');
   const [selected,setSelected]=useState<string|null>(null);
@@ -68,26 +76,44 @@ export default function App(){
   const [editorTab,setEditorTab]=useState<EditorTab>('plan');
   const [flash,setFlash]=useState('');
   const [showQuick,setShowQuick]=useState(false);
+  const [showSearch,setShowSearch]=useState(false);
   const [showSetup,setShowSetup]=useState(false);
   const [maintenanceFocus,setMaintenanceFocus]=useState('');
   const [lastEdit,setLastEdit]=useState(()=>{try{return Number(localStorage.getItem('hpp-last-edit')||0);}catch{return 0;}});
   const [lastExport,setLastExport]=useState(()=>{try{return Number(localStorage.getItem('hpp-last-export')||0);}catch{return 0;}});
   function noteExport(){const timestamp=Date.now();setLastExport(timestamp);try{localStorage.setItem('hpp-last-export',String(timestamp));}catch{/* browser storage may be restricted */}}
-  const pending=useRef(Promise.resolve());
   const ready=useRef(false);
   const mounted=useRef(true);
+  const queue=useRef<SaveQueue<Database>|null>(null);
+  if(!queue.current)queue.current=createSaveQueue<Database>(save,event=>{
+    if(!mounted.current)return;
+    setSaving(event.state==='saving');
+    setSaved(event.state==='saved');
+    setSaveError(event.state==='error'?
+      'Local save failed: '+event.error+'. Your latest edits may not survive a reload. Export a backup and retry saving.':'');
+  });
   useEffect(()=>{mounted.current=true;load().then(value=>{
     if(value&&!validateBackup(value))throw new Error('Stored data has an unsupported or damaged format. No changes were made.');
     if(mounted.current){ready.current=true;setDb(value||emptyDatabase());}
   }).catch(e=>setFatal(String(e.message||e)));return ()=>{mounted.current=false;};},[]);
   useEffect(()=>{
     if(!ready.current||!db)return;
-    setSaving(true);
-    const snapshot=db;
-    pending.current=pending.current.catch(()=>{}).then(()=>save(snapshot)).then(()=>{
-      if(mounted.current){setSaving(false);setSaveError('');}
-    }).catch((e:unknown)=>{if(mounted.current){setSaving(false);setSaveError(`Local save failed: ${String(e)}. Export a backup before leaving.`);}});
+    // Writes are serialized; only the last committed revision may display "Saved".
+    void queue.current?.enqueue(db).catch(()=>{});
   },[db]);
+  useEffect(()=>{
+    const warn=(event:BeforeUnloadEvent)=>{
+      if(queue.current?.needsUnloadWarning()){
+        event.preventDefault();
+        event.returnValue='';
+      }
+    };
+    window.addEventListener('beforeunload',warn);
+    return()=>window.removeEventListener('beforeunload',warn);
+  },[]);
+  useEffect(()=>{
+    void loadRecoverySnapshot().then(value=>{if(mounted.current)setHasRecovery(!!value);}).catch(()=>{});
+  },[]);
   const patch=(fn:(current:Database)=>Database)=>{
     const timestamp=Date.now();setLastEdit(timestamp);
     try{localStorage.setItem('hpp-last-edit',String(timestamp));}catch{/* IndexedDB remains authoritative */}
@@ -109,7 +135,7 @@ export default function App(){
     if(category!=='All'&&p.category!==category)return false;
     if(query.trim()&&!`${p.name} ${p.nextAction} ${p.description}`.toLowerCase().includes(query.toLowerCase().trim()))return false;
     if(filter==='quick')return p.status!=='Completed'&&p.estimatedHours>0&&p.estimatedHours<=2;
-    if(filter==='cheap')return p.status!=='Completed'&&p.budgetCents>0&&Math.max(0,projectCost(p).forecastCents-projectCost(p).spentCents)<=10000;
+    if(filter==='cheap')return isUnderBudgetRemaining(p);
     if(filter==='overdue')return p.status!=='Completed'&&!!p.targetDate&&(dayDiff(p.targetDate,today())??0)<0;
     if(filter==='waiting')return p.status==='Waiting';
     if(filter==='month')return p.futureCosts.some(x=>x.dueDate.startsWith(month));
@@ -117,6 +143,11 @@ export default function App(){
   });
   function navigate(next:Page){setSelected(null);setMaintenanceFocus('');setPage(next);window.scrollTo(0,0);}
   function goMaintenance(id:string){navigate('maintenance');setMaintenanceFocus(id);}
+  function openSearchResult(result:SearchResult){
+    setShowSearch(false);
+    if(result.kind==='project')edit(result.id);
+    else goMaintenance(result.kind==='equipment'?'equipment:'+result.id:result.id);
+  }
   function quickCreate(req:QuickCaptureRequest){
     setShowQuick(false);
     if(req.kind==='project'){
@@ -133,14 +164,27 @@ export default function App(){
       navigate('overview');
     }
   }
-  function installGuided(names:string[],keys:string[]){
+  function installGuided(names:string[],routines:SetupRoutine[]){
     patch(d=>{
       const existing=new Set(d.equipment.map(e=>e.name.trim().toLocaleLowerCase('en-US')));
       const equipmentAdded=names.filter(n=>!existing.has(n.trim().toLocaleLowerCase('en-US'))).map(name=>({...newEquipment(),name}));
-      const maintenanceAdded=MAINTENANCE_PRESETS.filter(p=>keys.includes(p.key)&&!isPresetInstalled(p,d.maintenance)).map(createFromPreset);
-      return {...d,equipment:[...d.equipment,...equipmentAdded],maintenance:[...d.maintenance,...maintenanceAdded]};
+      const allEquipment=[...d.equipment,...equipmentAdded];
+      const maintenanceAdded=routines.flatMap(choice=>{
+        const preset=MAINTENANCE_PRESETS.find(p=>p.key===choice.key);
+        if(!preset||isPresetInstalled(preset,d.maintenance))return [];
+        const equipmentId=allEquipment.find(e=>e.name.trim().toLocaleLowerCase('en-US')===choice.equipmentName.trim().toLocaleLowerCase('en-US'))?.id||'';
+        const item=createFromPreset(preset);
+        item.firstDueDate=choice.firstDueDate;
+        item.intervalMonths=choice.intervalMonths;
+        item.equipmentId=equipmentId;
+        if(choice.partNumber||choice.partSize)item.supplies.push({id:uid(),name:choice.partNumber||'Replacement part',
+         size:choice.partSize,partNumber:choice.partNumber,quantity:1,onHand:0,unitCents:0,
+         store:'',url:'',notes:''});
+        return [item];
+      });
+      return {...d,equipment:allEquipment,maintenance:[...d.maintenance,...maintenanceAdded]};
     });
-    setShowSetup(false);statusNotice('Selected equipment and maintenance routines added. Set real first due dates in Maintenance.');
+    setShowSetup(false);statusNotice('Selected equipment and maintenance routines added. Any unspecified due dates remain unscheduled.');
   }
   function edit(id:string){setSelected(id);setEditorTab('plan');setPage('projects');window.scrollTo(0,0);}
   function create(){const p=newProject();p.name='Untitled project';patch(d=>({...d,projects:[p,...d.projects]}));edit(p.id);}
@@ -148,10 +192,26 @@ export default function App(){
     patch(d=>({...d,projects:d.projects.filter(x=>x.id!==p.id).map(x=>({...x,blockedBy:x.blockedBy.filter(id=>id!==p.id)})),maintenance:d.maintenance.map(m=>m.projectId===p.id?{...m,projectId:''}:m)}));setSelected(null);
   }}
   function statusNotice(message:string){setFlash(message);window.scrollTo({top:0,behavior:'smooth'});}
-  function replaceBackup(value:Database){
+  async function replaceWorkspace(value:Database,message:string){
+    if(!db||!validateBackup(value))throw new Error('Invalid replacement workspace.');
+    await queue.current?.wait().catch(()=>{});
+    // Cancel the destructive change if the recovery checkpoint cannot be saved.
+    await saveRecoverySnapshot(db);
+    setHasRecovery(true);
     pauseSyncForLocalReplace();
     patch(()=>value);setSelected(null);navigate('overview');
-    statusNotice('Backup restored. Existing data on this device was replaced after your confirmation.');
+    statusNotice(message+' Automatic household sync is paused until you review the cloud copy.');
+  }
+  async function replaceBackup(value:Database){
+    await replaceWorkspace(value,'Backup restored. Previous local workspace checkpointed.');
+  }
+  async function restoreRecovery(){
+    try{
+      const previous=await loadRecoverySnapshot();
+      if(!previous){statusNotice('No previous workspace checkpoint is stored.');return;}
+      if(!window.confirm('Restore your previous local workspace? Your current copy becomes the new checkpoint. Cloud sync will pause.'))return;
+      await replaceWorkspace(previous,'Previous local workspace restored.');
+    }catch(e){statusNotice('Recovery failed: '+(e instanceof Error?e.message:String(e)));}
   }
   function mergeBackup(value:Database){
     patch(previous=>mergeNewRecords(previous,value).result);setSelected(null);
@@ -166,10 +226,10 @@ export default function App(){
       <div className="side-note"><span className="status-dot"/> Offline-first workspace<small>Optional private household sync</small></div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div className="top-left"><span className="top-kicker">PERSONAL WORKSPACE</span><span className="top-title">{page==='overview'?'Today':page==='projects'?'Projects':page==='maintenance'?'Maintenance':'Backup & data'}</span></div><div className="top-actions"><span className="save-indicator">{saveError?'⚠ Save error':saving?'Saving…':'✓ Local save'}</span><button className="button primary" onClick={()=>setShowQuick(true)}>+ Quick add</button></div></header>
+      <header className="topbar"><div className="top-left"><span className="top-kicker">PERSONAL WORKSPACE</span><span className="top-title">{page==='overview'?'Today':page==='projects'?'Projects':page==='maintenance'?'Maintenance':'Backup & data'}</span></div><div className="top-actions"><span className="save-indicator">{saveError?'⚠ Save error':saving?'Saving…':saved?'✓ Saved locally':'Preparing save…'}</span><button className="button secondary top-search-btn" onClick={()=>setShowSearch(true)}>⌕ Search</button><button className="button primary" onClick={()=>setShowQuick(true)}>+ Quick add</button></div></header>
       <main className="content">
         {db.demo&&<div className="demo-banner"><strong>Sample workspace</strong> — These are fictional projects and amounts. Start fresh under Backup & data before entering personal information. <button onClick={()=>navigate('data')}>Manage sample data</button></div>}
-        {saveError&&<div role="alert" className="alert error">{saveError} <button onClick={()=>downloadBackup(db)}>Export now</button></div>}
+        {saveError&&<div role="alert" className="alert error">{saveError} <button onClick={()=>downloadBackup(db)}>Export backup</button> <button onClick={()=>{void queue.current?.enqueue(db).catch(()=>{});}}>Retry save</button></div>}
         {flash&&<div role="status" className="alert">{flash}<button onClick={()=>setFlash('')}>Dismiss</button></div>}
         {selected&&project?<ProjectEditor key={project.id} project={project} allProjects={db.projects} tab={editorTab} setTab={setEditorTab} patch={fn=>patchProject(project.id,fn)} back={()=>setSelected(null)} remove={()=>deleteProject(project)} alert={statusNotice}/>:
         page==='overview'?<>
@@ -181,7 +241,7 @@ export default function App(){
           <div className="section-heading"><div><h2>What should I work on?</h2><p>Actionable, unblocked projects ranked by a visible score or your override.</p></div><SmallBtn onClick={()=>navigate('projects')}>View all projects →</SmallBtn></div>
           {actionable.length?<div className="project-grid">{actionable.slice(0,4).map(p=><ProjectCard key={p.id} p={p} projects={db.projects} open={()=>edit(p.id)}/>)}</div>:<EmptyState title="Your projects start here" body="Add your first project, or load optional fictional examples in Backup & data." action="Create a project" onClick={create}/>}
           <div className="section-heading"><div><h2>Quick decisions</h2><p>Choose a constraint; see the projects that fit.</p></div></div>
-          <div className="quick-grid">{([['quick','Finish in 2 hours','⌁',`${active.filter(p=>p.estimatedHours>0&&p.estimatedHours<=2).length} projects`],['cheap','Remaining under $100','$',`${active.filter(p=>p.budgetCents>0&&Math.max(0,projectCost(p).forecastCents-projectCost(p).spentCents)<=10000).length} projects`],['overdue','Overdue','!',`${overdue} projects`],['waiting','Waiting on others','◷',`${waiting} projects`],['month','Spending this month','▧',money(monthPlan)],['all','All projects','▤',`${db.projects.length} total`]] as [Filter,string,string,string][]).map(([key,name,icon,note])=><button className="quick-card" key={key} onClick={()=>{setFilter(key);navigate('projects');}}><span className="quick-icon">{icon}</span><strong>{name}</strong><small>{note}</small><span className="quick-arrow">↗</span></button>)}</div>
+          <div className="quick-grid">{([['quick','Finish in 2 hours','⌁',`${active.filter(p=>p.estimatedHours>0&&p.estimatedHours<=2).length} projects`],['cheap','Remaining under $100','$',`${active.filter(p=>isUnderBudgetRemaining(p)).length} projects`],['overdue','Overdue','!',`${overdue} projects`],['waiting','Waiting on others','◷',`${waiting} projects`],['month','Spending this month','▧',money(monthPlan)],['all','All projects','▤',`${db.projects.length} total`]] as [Filter,string,string,string][]).map(([key,name,icon,note])=><button className="quick-card" key={key} onClick={()=>{setFilter(key);navigate('projects');}}><span className="quick-icon">{icon}</span><strong>{name}</strong><small>{note}</small><span className="quick-arrow">↗</span></button>)}</div>
           {(db.maintenance.length>0||db.equipment.length>0)&&((!lastExport&&db.projects.length+db.maintenance.length+db.equipment.length>=3)||(lastEdit>lastExport&&Date.now()-lastExport>7*86400000))&&<div className="backup-nudge"><strong>Keep your home records safe</strong><span>{!lastExport?'No backup prepared on this device yet.':'Changes have been made since your last export.'}</span><button className="small-btn" onClick={()=>navigate('data')}>Backup / transfer →</button></div>}
           {serviceDue>0&&<div className="maintenance-callout"><span>◷</span><div><strong>{serviceDue} maintenance item(s) due or approaching</strong><p>Review planned servicing and warranties.</p></div><button className="button secondary" onClick={()=>navigate('maintenance')}>Review</button></div>}
                   </details>
@@ -189,24 +249,32 @@ export default function App(){
           <div className="page-heading"><div><h1>All projects</h1><p>Simple plans, sensible spending, clear next actions.</p></div><button className="button primary" onClick={create}>+ Add project</button></div>
           <div className="toolbar"><input type="search" placeholder="Search projects or next actions…" aria-label="Search projects" value={query} onChange={e=>setQuery(e.target.value)}/><Select value={category} onChange={setCategory} options={['All',...CATEGORIES]}/></div>
           <div className="filter-chips" aria-label="Project filters">{([['all','All'],['quick','≤ 2 hours'],['cheap','Under $100'],['overdue','Overdue'],['waiting','Waiting'],['month','This month']] as [Filter,string][]).map(([key,title])=><button key={key} onClick={()=>setFilter(key)} className={filter===key?'active':''}>{title}</button>)}</div>
-          <p className="results-note">{shown.length} project{shown.length===1?'':'s'} · Completed items are included in All · Under $100 uses remaining estimated cost</p>
+          <p className="results-note">{shown.length} project{shown.length===1?'':'s'} · Completed items are included in All · Under $100 uses known remaining estimates; projects without estimates are excluded</p>
           {shown.length?<div className="project-grid">{shown.map(p=><ProjectCard key={p.id} p={p} projects={db.projects} open={()=>edit(p.id)}/>)}</div>:<EmptyState title="No matching projects" body="Try a different filter or add a new project." action="Add project" onClick={create}/>}
         </>:page==='maintenance'?<MaintenanceView key={maintenanceFocus||equipmentDeepLink||'main'} equipmentDeepLink={equipmentDeepLink} focusId={maintenanceFocus} onOpenProject={edit} items={db.maintenance} projects={db.projects} equipment={db.equipment} change={fn=>patch(d=>({...d,maintenance:fn(d.maintenance)}))} changeEquipment={fn=>patch(d=>({...d,equipment:fn(d.equipment)}))} unlinkEquipment={id=>patch(d=>({...d,maintenance:d.maintenance.map(m=>m.equipmentId===id?{...m,equipmentId:''}:m)}))} />:
           <div className="data-page"><div className="page-heading"><div><h1>Keep your plans safe.</h1><p>Your data starts in this browser, on this device. Optional household sync is available below.</p></div><a className="small-btn" href="#household-sync">Household sync ↓</a></div>
             <BackupTransfer data={db} lastEdit={lastEdit} lastExport={lastExport} onPrepared={noteExport} onReplace={replaceBackup} onMerge={mergeBackup}/>
-            <section className="panel"><h2>Workspace controls</h2><p>Need an example before starting? Load fictional projects and comparisons. This replaces the current workspace.</p><div className="action-line"><button className="button secondary" onClick={()=>{if(window.confirm('Replace all current data with fictional demo projects? Export first. This pauses household cloud sync so the demo will NOT replace shared data.')){pauseSyncForLocalReplace();patch(()=>demoData());setSelected(null);statusNotice('Fictional demo workspace loaded.');}}}>Load demo workspace</button><button className="button danger" onClick={()=>{if(window.confirm('Permanently clear this device’s local projects, maintenance and equipment? Export a backup first. This pauses cloud sync; shared household data will NOT be deleted.')){pauseSyncForLocalReplace();patch(()=>emptyDatabase());setSelected(null);statusNotice('Local workspace cleared.');}}}>Clear all data</button></div></section>
+            <section className="panel"><h2>Workspace controls</h2><p>Need an example before starting? Load fictional projects and comparisons. This replaces the current workspace.</p><div className="action-line"><button className="button secondary" onClick={()=>{if(window.confirm('Replace all current data with fictional demo projects? Export first. A local recovery checkpoint will be created and cloud sync paused.')){void replaceWorkspace(demoData(),'Fictional demo workspace loaded.').catch(e=>statusNotice('Demo not loaded: '+String(e)));}}}>Load demo workspace</button><button className="button danger" onClick={()=>{if(window.confirm('Clear this device’s local workspace? Export first. A recovery checkpoint will be created and cloud sync paused.')){void replaceWorkspace(emptyDatabase(),'Local workspace cleared.').catch(e=>statusNotice('Clear cancelled: '+String(e)));}}}>Clear all data</button>{hasRecovery&&<button className="button secondary" onClick={()=>void restoreRecovery()}>Recover previous workspace</button>}</div>
+             <p className="subtle">The app keeps one local recovery checkpoint before demo loading, clearing or backup restoration. This is not a historical backup; continue exporting private JSON files.</p></section>
             <section className="panel"><h2>How your data works</h2><ul className="help-list"><li>Stored in this browser’s IndexedDB database; GitHub Pages does not receive your records.</li><li>Browsers and devices store separate local copies unless you sign into the same household and explicitly enable automatic sync.</li><li>Clearing browser data can erase local records. Export backups regularly. Loading demo data, restoring a backup or clearing this device intentionally pauses automatic sync.</li><li>Photos and PDFs are embedded in the JSON backup. Large attachments make backups larger.</li><li>Exports are created on-device. With household sync enabled, selected household records are sent privately to Supabase. No bank access or purchase automation.</li></ul></section>
           </div>}
         {/* Remain mounted across all pages so automatic synchronization can run while the app is open. */}
         <div hidden={page!=='data'} id="household-sync">
-          <HouseholdSync data={db} onReplace={value=>{
-            if(validateBackup(value))patch(()=>value);
-            else statusNotice('Cloud copy failed validation; local data was not changed.');
+          <HouseholdSync data={db} onReplace={async value=>{
+            if(!validateBackup(value))throw new Error('Cloud copy failed validation. Local records remain unchanged.');
+            // An import is only acknowledged to cloud sync AFTER its local snapshot is durable.
+            await queue.current?.wait().catch(()=>{});
+            await saveRecoverySnapshot(db);
+            setHasRecovery(true);
+            await save(value);
+            setDb(value);
+            setSaved(true);
           }}/>
         </div>
       </main>
     </div>
     {showQuick&&<QuickCapture projects={db.projects} onCreate={quickCreate} onClose={()=>setShowQuick(false)}/>}
+    {showSearch&&<HomeSearch data={db} onOpen={openSearchResult} onClose={()=>setShowSearch(false)}/>}
     <nav className="mobile-nav" aria-label="Mobile navigation">{NAV.map(([id,label,icon])=><button key={id} onClick={()=>navigate(id)} className={page===id?'selected':''}><span>{icon}</span><small>{label==='Backup & data'?'Backup':label}</small></button>)}</nav>
   </div>;
 }
@@ -247,17 +315,25 @@ function ProjectEditor({project:p,allProjects,tab,setTab,patch,back,remove,alert
     <div className="editor-tabs" role="tablist" aria-label="Project sections">{tabs.map(([id,label])=><button role="tab" aria-selected={tab===id} className={tab===id?'active':''} key={id} onClick={()=>setTab(id)}>{label}</button>)}</div>
     {tab==='plan'&&<div className="two-column"><section className="panel"><div className="panel-heading"><h2>Project details</h2><p>Capture the essentials, not paperwork.</p></div><div className="form-grid">
       <TextField label="Project name"><input value={p.name} onChange={e=>set('name',e.target.value)} maxLength={120}/></TextField>
-      <TextField label="Category"><Select value={p.category} onChange={v=>set('category',v as Project['category'])} options={CATEGORIES}/></TextField>
       <TextField label="Status"><Select value={p.status} onChange={v=>set('status',v as Project['status'])} options={STATUSES}/></TextField>
       <TextField label="Target date"><input type="date" value={p.targetDate} onChange={e=>set('targetDate',e.target.value)}/></TextField>
-      <TextField label="Estimated time (hours)"><input type="number" min="0" step="0.5" value={p.estimatedHours} onChange={e=>set('estimatedHours',num(e.target.value))}/></TextField>
-      <TextField label="Ranking preference"><Select value={p.override} onChange={v=>set('override',v as Project['override'])} options={['auto','first','later']}/></TextField>
       <TextField label="Next action"><input placeholder="What is the very next thing to do?" value={p.nextAction} onChange={e=>set('nextAction',e.target.value)}/></TextField>
-      <TextField label="Description / notes"><textarea rows={4} value={p.description} placeholder="Scope, decisions, links, constraints…" onChange={e=>set('description',e.target.value)}/></TextField>
-    </div></section><div className="stack"><section className="panel"><div className="panel-heading"><h2>Priority, explained</h2><p>Factors from 0 (low) to 4 (high), with no AI guesswork.</p></div>
+      <details className="project-advanced"><summary>More project details (optional)</summary><div className="form-grid">
+       <TextField label="Category"><Select value={p.category} onChange={v=>set('category',v as Project['category'])} options={CATEGORIES}/></TextField>
+       <TextField label="Estimated time (hours)"><input type="number" min="0" step="0.5" value={p.estimatedHours} onChange={e=>set('estimatedHours',num(e.target.value))}/></TextField>
+       <TextField label="Ranking preference"><Select value={p.override} onChange={v=>set('override',v as Project['override'])} options={['auto','first','later']}/></TextField>
+       <TextField label="Description / notes"><textarea rows={4} value={p.description} placeholder="Scope, decisions, links, constraints…" onChange={e=>set('description',e.target.value)}/></TextField>
+      </div></details>
+    </div></section><div className="stack"><details className="project-advanced"><summary>Priority & dependencies · {score.score} points</summary><section className="panel"><div className="panel-heading"><h2>Priority, explained</h2><p>Factors from 0 (low) to 4 (high), with no AI guesswork.</p></div>
       {([['urgency','Safety / urgency'],['financialImpact','Financial impact'],['importance','Personal importance']] as [keyof Pick<Project,'urgency'|'financialImpact'|'importance'>,string][]).map(([key,label])=><label className="range-field" key={key}><div><span>{label}</span><strong>{p[key]}/4</strong></div><input type="range" min="0" max="4" value={p[key]} onChange={e=>set(key,num(e.target.value))}/></label>)}
       <div className="score-line"><strong>{score.score}</strong><span>automatic points</span></div><div className="reason-list">{score.reasons.map((r,i)=><span key={i}>{r}</span>)}</div><p className="hint">Manual “Do first” and “Do later” override ranking groups, not the calculation. Completed projects remain visible but not in the work-next suggestions.</p></section>
-      <section className="panel"><h2>Dependencies</h2><p className="subtle">Mark projects that need finishing before this one.</p><div className="dependency-list">{allProjects.filter(x=>x.id!==p.id&&x.status!=='Completed').map(other=><label key={other.id}><input type="checkbox" checked={p.blockedBy.includes(other.id)} onChange={e=>set('blockedBy',e.target.checked?[...p.blockedBy,other.id]:p.blockedBy.filter(x=>x!==other.id))}/><span>{other.name}</span></label>)}{allProjects.length<=1&&<p className="subtle">Other projects will appear here.</p>}</div></section></div></div>}
+      <section className="panel"><h2>Dependencies</h2><p className="subtle">Mark projects that need finishing before this one.</p><div className="dependency-list">{allProjects.filter(x=>x.id!==p.id&&x.status!=='Completed').map(other=>{
+ const cyclical=!p.blockedBy.includes(other.id)&&wouldCreateDependencyCycle(allProjects,p.id,other.id);
+ return <label key={other.id} title={cyclical?'Would create a circular dependency':''}>
+ <input type="checkbox" disabled={cyclical} checked={p.blockedBy.includes(other.id)}
+ onChange={e=>set('blockedBy',e.target.checked?[...p.blockedBy,other.id]:p.blockedBy.filter(x=>x!==other.id))}/>
+ <span>{other.name}{cyclical?' · Cannot link (circular)':''}</span></label>;
+})}{allProjects.length<=1&&<p className="subtle">Other projects will appear here.</p>}</div></section></details></div></div>}
     {tab==='tasks'&&<section className="panel"><div className="panel-heading"><h2>Steps and checklists</h2><p>Optional phases keep the work organized. Mark steps done as you finish.</p></div><div className="task-summary">{p.tasks.filter(t=>t.done).length}/{p.tasks.length} completed <div className="progress"><span style={{width:`${p.tasks.length?100*p.tasks.filter(x=>x.done).length/p.tasks.length:0}%`}}/></div></div>
       <div className="task-list">{p.tasks.map(t=><div key={t.id} className="task-item"><input type="checkbox" aria-label={`Complete ${t.title}`} checked={t.done} onChange={e=>set('tasks',p.tasks.map(x=>x.id===t.id?{...x,done:e.target.checked}:x))}/><input className={t.done?'done':''} aria-label="Step name" value={t.title} onChange={e=>set('tasks',p.tasks.map(x=>x.id===t.id?{...x,title:e.target.value}:x))} placeholder="What needs doing?"/><input aria-label="Phase" placeholder="Phase (optional)" value={t.phase} onChange={e=>set('tasks',p.tasks.map(x=>x.id===t.id?{...x,phase:e.target.value}:x))}/><input aria-label="Step due date" type="date" value={t.dueDate} onChange={e=>set('tasks',p.tasks.map(x=>x.id===t.id?{...x,dueDate:e.target.value}:x))}/><button aria-label="Delete step" className="icon-delete" onClick={()=>set('tasks',p.tasks.filter(x=>x.id!==t.id))}>×</button></div>)}</div>
       <button className="add-row" onClick={()=>set('tasks',[...p.tasks,{id:uid(),title:'',done:false,phase:'',dueDate:''}])}>+ Add a step</button><div className="next-action-panel"><strong>Next action — shown on your dashboard</strong><input value={p.nextAction} placeholder="e.g. Call for a second quote" onChange={e=>set('nextAction',e.target.value)}/></div>
@@ -288,13 +364,13 @@ function ProjectEditor({project:p,allProjects,tab,setTab,patch,back,remove,alert
 }
 
 function MaintenanceView({items,projects,equipment,focusId,equipmentDeepLink,onOpenProject,change,changeEquipment,unlinkEquipment}:{items:MaintenanceItem[];projects:Project[];equipment:EquipmentItem[];focusId:string;equipmentDeepLink:string;onOpenProject:(id:string)=>void;change:(fn:(items:MaintenanceItem[])=>MaintenanceItem[])=>void;changeEquipment:(fn:(items:EquipmentItem[])=>EquipmentItem[])=>void;unlinkEquipment:(id:string)=>void}){
- const [selected,setSelected]=useState<string|null>(focusId||null);
+ const [selected,setSelected]=useState<string|null>(focusId.startsWith('equipment:')?null:focusId||null);
  const [showPresets,setShowPresets]=useState(false);
  const [section,setSection]=useState<'upcoming'|'tasks'|'history'|'reference'>('upcoming');
  const [presetMode,setPresetMode]=useState<'home'|'seasonal'>('home');
  const [completing,setCompleting]=useState<string|null>(null);
- const [showEquipment,setShowEquipment]=useState(Boolean(equipmentDeepLink));
- const [equipmentFocus,setEquipmentFocus]=useState(equipmentDeepLink);
+ const [showEquipment,setShowEquipment]=useState(Boolean(equipmentDeepLink||focusId.startsWith('equipment:')));
+ const [equipmentFocus,setEquipmentFocus]=useState(focusId.startsWith('equipment:')?focusId.slice('equipment:'.length):equipmentDeepLink);
  const [picks,setPicks]=useState<string[]>(()=>MAINTENANCE_PRESETS.filter(p=>p.defaultSelected).map(p=>p.key));
  const [notice,setNotice]=useState('');
  const item=items.find(m=>m.id===selected);

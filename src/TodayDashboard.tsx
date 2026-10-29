@@ -1,7 +1,7 @@
 import type {MaintenanceItem,Project} from './types';
 import {today} from './types';
 import {todayOverview} from './today-calendar.mjs';
-import {dayDiff} from './logic.mjs';
+import {dayDiff,dueMaintenance} from './logic.mjs';
 
 export function TodayDashboard({projects,maintenance,onQuickAdd,onSetup,onOpenProject,onOpenMaintenance,onStepDone}:{
  projects:Project[];maintenance:MaintenanceItem[];onQuickAdd:()=>void;onSetup:()=>void;
@@ -9,6 +9,11 @@ export function TodayDashboard({projects,maintenance,onQuickAdd,onSetup,onOpenPr
 }){
  const current=today(),dashboard=todayOverview(projects,maintenance,current);
  const hasWork=projects.length>0||maintenance.length>0;
+ const unscheduled=maintenance.filter(item=>!dueMaintenance(item,current).dueDate&&item.intervalHours<=0).slice(0,8);
+ const shortages=maintenance.flatMap(item=>item.supplies.filter(part=>{
+  const required=Math.max(part.quantity||0,part.minOnHand||0);
+  return required>0&&part.onHand<required;
+ }).map(part=>({item,part,need:Math.max(0,Math.max(part.quantity||0,part.minOnHand||0)-part.onHand)}))).slice(0,8);
  return <div className="today-page">
   <div className="today-heading"><div><span className="eyebrow">YOUR HOME AT A GLANCE</span><h1>Today at home</h1><p>What needs attention, what is coming up, and what can be finished quickly.</p></div><div className="action-line"><button className="button primary" onClick={onQuickAdd}>+ Quick add</button><button className="button secondary" onClick={onSetup}>Guided setup</button></div></div>
   {!hasWork&&<section className="panel today-start"><h2>Get the basics in place</h2><p>Select your main equipment and recurring household maintenance tasks. Nothing is added or scheduled without your choice.</p><button className="button primary" onClick={onSetup}>Set up my home →</button></section>}
@@ -26,6 +31,11 @@ export function TodayDashboard({projects,maintenance,onQuickAdd,onSetup,onOpenPr
     {dashboard.quickWins.length?<div className="today-lines">{dashboard.quickWins.slice(0,4).map(p=><button key={p.id} onClick={()=>onOpenProject(p.id)}><strong>{p.name}</strong><small>{p.estimatedHours} hour{p.estimatedHours===1?'':'s'} estimated</small><span>Open →</span></button>)}</div>:<p className="subtle">No small projects identified yet. Set estimated hours in a project to see quick wins here.</p>}
    </section>
   </div>
+  {(unscheduled.length>0||shortages.length>0)&&<details className="today-more">
+    <summary>Setup needed & supplies to buy ({unscheduled.length+shortages.length})</summary>
+    <div>{unscheduled.map(item=><button key={'u'+item.id} onClick={()=>onOpenMaintenance(item.id)}>Set first due date · {item.title} →</button>)}
+    {shortages.map(({item,part,need})=><button key={'s'+item.id+part.id} onClick={()=>onOpenMaintenance(item.id)}>Order {need} × {part.name||part.partNumber||'replacement part'} · {item.title} →</button>)}</div>
+   </details>}
   {!!dashboard.upcomingProjects.length&&<details className="today-more"><summary>{dashboard.upcomingProjects.length} project deadlines in the next week</summary><div>{dashboard.upcomingProjects.slice(0,5).map(p=><button key={p.id} onClick={()=>onOpenProject(p.id)}>{p.name} · {p.targetDate} →</button>)}</div></details>}
  </div>;
 }

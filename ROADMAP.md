@@ -18,6 +18,21 @@
 - [x] Signed-in household sharing, one-use invitations, owner access revocation, revision-guarded optional sync and manual conflict review
 - [x] Local demo load, clear and restore pause sync to prevent unintentional shared-household overwrites
 
+## Reliability and usability update (October 29, 2026)
+
+- [x] Scope PWA fetches and cache deletion strictly to Home Project Planner; regressions tested
+- [x] Serial local saving with latest-revision status, retry after failures and unload warning
+- [x] Manual/cloud-transfer wording aligned with actual optional sync capabilities
+- [x] Cloud conflicts pause automatic sync and offer local/cloud export with grouped record differences
+- [x] Persist incoming cloud snapshot before acknowledging its revision
+- [x] Search projects, maintenance, equipment, model/serial numbers, parts and file names without a separate page
+- [x] Under-$100 remaining-cost filtering and circular-dependency prevention
+- [x] Today's expandable unscheduled-routine and replacement-supply follow-ups
+- [x] Optional first dates, frequency, linked equipment and replacement part details in guided setup
+- [x] Simpler Plan editor, responsive tab strip and compact phone layout improvements
+- [x] Local recovery checkpoint before destructive workspace replacement, plus restore control
+- [ ] Test all new functionality on a real 320/375/390/768px phone/tablet/browser; automated build alone does not establish this
+
 ## Verify before relying on automatic sync (highest priority)
 
 - [ ] Confirm email sign-up / confirmation and redirect behavior for the deployed Pages URL.
