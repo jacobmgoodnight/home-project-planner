@@ -16,3 +16,9 @@ test('restock validates quantities and only changes on-hand count',async()=>{
  const {stockAfterRestock}=await import('../src/maintenance-support.mjs');
  assert.equal(stockAfterRestock(2,3),5);assert.throws(()=>stockAfterRestock(0,0));assert.throws(()=>stockAfterRestock(9999,1));assert.throws(()=>stockAfterRestock(1,1.5));
 });
+
+test('explicit low-stock level adds refill even if service is months away',()=>{
+ const future=item({firstDueDate:'2027-08-01',supplies:[part({minOnHand:4,onHand:1,quantity:1})]});
+ const rows=shoppingRows([future],'2026-10-29');
+ assert.equal(rows.length,1);assert.equal(rows[0].quantity,3);assert.equal(rows[0].estimatedCents,3750);
+});

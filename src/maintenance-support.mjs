@@ -18,7 +18,7 @@ export function quantityToBuy(part) {return Math.max(0,Math.max(Number(part.quan
 export function shoppingRows(items,asOf,all=false) {
   return items.flatMap(item=>{
     const due=dueMaintenance(item,asOf);
-    if(!all&&!due.due&&!due.soon)return [];
+    if(!all&&!due.due&&!due.soon&&!(item.supplies||[]).some(part=>Number.isInteger(part.minOnHand)&&part.minOnHand>0&&part.onHand<part.minOnHand))return [];
     return (item.supplies||[]).filter(part=>quantityToBuy(part)>0).map(part=>({
       maintenanceId:item.id,maintenanceTitle:item.title,dueDate:due.dueDate,
       part,quantity:quantityToBuy(part),estimatedCents:part.unitCents>0?Math.round(quantityToBuy(part)*part.unitCents):null
