@@ -52,3 +52,11 @@ Future inventory import may use a mapping `{sourceApp, sourceId, projectId, mate
 - Agenda uses actual dueMaintenance dates and 30/60-day windows. Do not derive a false due date for unscheduled templates.
 - Low-stock alert is based only on user-entered minOnHand (optional) and independent of due dates. No automatic shopping/bank integrations.
 - Seasonal templates use annual calendar-month intervals and start unscheduled. Avoid duplicating Holiday Display Blueprint installation and wiring tasks.
+
+
+## Cross-device manual transfers and equipment insights
+
+- 'Sync' currently means explicit JSON sharing/import. PreviewMerge skips conflicting existing IDs and reports conflicts; never represent this as automatic cloud synchronization. Validate incoming JSON with readBackup before merging. A replace action is deliberately destructive and needs explicit confirmation.
+- Last-export reminders are localStorage metadata, advisory only. Do not infer that a download/share was actually saved on another device; IndexedDB remains the authoritative data.
+- Warranty dates are user-entered and may be expired. Equipment search includes linked maintenance part numbers; do not index serials remotely or prefill personal identifiers.
+- Maintenance service summaries count ONLY dated costCents entries from Maintenance. Those may overlap user-entered project expenses; never merge totals automatically.

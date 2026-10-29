@@ -3,13 +3,16 @@ import type { ChangeEvent, ReactNode } from 'react';
 import type { Attachment, Database, DecisionOption, Expense, FutureCost, MaintenanceItem, Material, Project, Quote, ServiceEntry } from './types';
 import { CATEGORIES, STATUSES, emptyDatabase, newMaintenance, newProject, today, uid } from './types';
 import { money, fromDollars, dollars, clamp, projectCost, decisionCost, sortProjects, priority, dueMaintenance, dayDiff } from './logic.mjs';
-import { attachmentFromFile, downloadBackup, load, readBackup, save, validateBackup } from './storage';
+import { attachmentFromFile, downloadBackup, load, save, validateBackup } from './storage';
 import { demoData } from './demo';
 import { MAINTENANCE_PRESETS,createFromPreset,isPresetInstalled } from './maintenance-presets';
 import { MaintenancePartsEditor,MaintenanceShoppingPanel } from './MaintenanceParts';
 import { EquipmentInventory } from './EquipmentInventory';
 import { MaintenanceCompletion } from './MaintenanceCompletion';
 import { MaintenanceAgenda } from './MaintenanceAgenda';
+import { MaintenanceHistory } from './MaintenanceHistory';
+import { BackupTransfer } from './BackupTransfer';
+import { mergeNewRecords } from './safe-transfer.mjs';
 import type { CompletionDetails } from './maintenance-enhancements.mjs';
 import { completeService } from './maintenance-enhancements.mjs';
 import type { EquipmentItem } from './types';
@@ -55,6 +58,9 @@ export default function App(){
   const [category,setCategory]=useState('All');
   const [editorTab,setEditorTab]=useState<EditorTab>('plan');
   const [flash,setFlash]=useState('');
+  const [lastEdit,setLastEdit]=useState(()=>{try{return Number(localStorage.getItem('hpp-last-edit')||0);}catch{return 0;}});
+  const [lastExport,setLastExport]=useState(()=>{try{return Number(localStorage.getItem('hpp-last-export')||0);}catch{return 0;}});
+  function noteExport(){const timestamp=Date.now();setLastExport(timestamp);try{localStorage.setItem('hpp-last-export',String(timestamp));}catch{/* browser storage may be restricted */}}
   const pending=useRef(Promise.resolve());
   const ready=useRef(false);
   const mounted=useRef(true);
@@ -70,7 +76,11 @@ export default function App(){
       if(mounted.current){setSaving(false);setSaveError('');}
     }).catch((e:unknown)=>{if(mounted.current){setSaving(false);setSaveError(`Local save failed: ${String(e)}. Export a backup before leaving.`);}});
   },[db]);
-  const patch=(fn:(current:Database)=>Database)=>setDb(prev=>prev?fn(prev):prev);
+  const patch=(fn:(current:Database)=>Database)=>{
+    const timestamp=Date.now();setLastEdit(timestamp);
+    try{localStorage.setItem('hpp-last-edit',String(timestamp));}catch{/* IndexedDB remains authoritative */}
+    setDb(prev=>prev?fn(prev):prev);
+  };
   const patchProject=(id:string, fn:(p:Project)=>Project)=>patch(d=>({...d,projects:d.projects.map(p=>p.id===id?{...fn(p),updatedAt:new Date().toISOString()}:p)}));
   const active=db?.projects.filter(p=>p.status!=='Completed')||[];
   const sorted=useMemo(()=>db?sortProjects(db.projects,today()):[],[db]);
@@ -100,11 +110,14 @@ export default function App(){
     patch(d=>({...d,projects:d.projects.filter(x=>x.id!==p.id).map(x=>({...x,blockedBy:x.blockedBy.filter(id=>id!==p.id)})),maintenance:d.maintenance.map(m=>m.projectId===p.id?{...m,projectId:''}:m)}));setSelected(null);
   }}
   function statusNotice(message:string){setFlash(message);window.scrollTo({top:0,behavior:'smooth'});}
-  async function restore(file:File){try{
-    const value=await readBackup(file);
-    if(!window.confirm(`Replace all local data with this backup (${value.projects.length} projects, ${value.maintenance.length} maintenance records)? Export your current data first.`))return;
-    patch(()=>value);setSelected(null);navigate('overview');statusNotice('Backup restored. Changes will be saved to this browser.');
-  }catch(e){statusNotice(String(e instanceof Error?e.message:e));}}
+  function replaceBackup(value:Database){
+    patch(()=>value);setSelected(null);navigate('overview');
+    statusNotice('Backup restored. Existing data on this device was replaced after your confirmation.');
+  }
+  function mergeBackup(value:Database){
+    patch(previous=>mergeNewRecords(previous,value).result);setSelected(null);
+    statusNotice('Only new records were merged; existing IDs and edits were preserved.');
+  }
   if(fatal)return <main className="startup"><h1>Local storage could not be opened</h1><p>{fatal}</p><p>The app will not overwrite your existing data. Check private browsing or browser storage settings, then reload.</p><button onClick={()=>location.reload()}>Try again</button></main>;
   if(!db)return <main className="startup"><h1>Home Project Planner</h1><p>Opening your local projects…</p></main>;
   return <div className="app-shell">
@@ -127,6 +140,7 @@ export default function App(){
           {actionable.length?<div className="project-grid">{actionable.slice(0,4).map(p=><ProjectCard key={p.id} p={p} projects={db.projects} open={()=>edit(p.id)}/>)}</div>:<EmptyState title="Your projects start here" body="Add your first project, or load optional fictional examples in Backup & data." action="Create a project" onClick={create}/>}
           <div className="section-heading"><div><h2>Quick decisions</h2><p>Choose a constraint; see the projects that fit.</p></div></div>
           <div className="quick-grid">{([['quick','Finish in 2 hours','⌁',`${active.filter(p=>p.estimatedHours>0&&p.estimatedHours<=2).length} projects`],['cheap','Remaining under $100','$',`${active.filter(p=>p.budgetCents>0&&Math.max(0,projectCost(p).forecastCents-projectCost(p).spentCents)<=10000).length} projects`],['overdue','Overdue','!',`${overdue} projects`],['waiting','Waiting on others','◷',`${waiting} projects`],['month','Spending this month','▧',money(monthPlan)],['all','All projects','▤',`${db.projects.length} total`]] as [Filter,string,string,string][]).map(([key,name,icon,note])=><button className="quick-card" key={key} onClick={()=>{setFilter(key);navigate('projects');}}><span className="quick-icon">{icon}</span><strong>{name}</strong><small>{note}</small><span className="quick-arrow">↗</span></button>)}</div>
+          {(db.maintenance.length>0||db.equipment.length>0)&&((!lastExport&&db.projects.length+db.maintenance.length+db.equipment.length>=3)||(lastEdit>lastExport&&Date.now()-lastExport>7*86400000))&&<div className="backup-nudge"><strong>Keep your home records safe</strong><span>{!lastExport?'No backup prepared on this device yet.':'Changes have been made since your last export.'}</span><button className="small-btn" onClick={()=>navigate('data')}>Backup / transfer →</button></div>}
           {serviceDue>0&&<div className="maintenance-callout"><span>◷</span><div><strong>{serviceDue} maintenance item(s) due or approaching</strong><p>Review planned servicing and warranties.</p></div><button className="button secondary" onClick={()=>navigate('maintenance')}>Review</button></div>}
         </>:page==='projects'?<>
           <div className="page-heading"><div><h1>All projects</h1><p>Simple plans, sensible spending, clear next actions.</p></div><button className="button primary" onClick={create}>+ Add project</button></div>
@@ -136,8 +150,7 @@ export default function App(){
           {shown.length?<div className="project-grid">{shown.map(p=><ProjectCard key={p.id} p={p} projects={db.projects} open={()=>edit(p.id)}/>)}</div>:<EmptyState title="No matching projects" body="Try a different filter or add a new project." action="Add project" onClick={create}/>}
         </>:page==='maintenance'?<MaintenanceView items={db.maintenance} projects={db.projects} equipment={db.equipment} change={fn=>patch(d=>({...d,maintenance:fn(d.maintenance)}))} changeEquipment={fn=>patch(d=>({...d,equipment:fn(d.equipment)}))} unlinkEquipment={id=>patch(d=>({...d,maintenance:d.maintenance.map(m=>m.equipmentId===id?{...m,equipmentId:''}:m)}))} />:
           <div className="data-page"><div className="page-heading"><div><h1>Keep your plans safe.</h1><p>Your data lives in this browser, on this device, until you export it.</p></div></div>
-            <div className="data-grid"><section className="panel"><div className="panel-icon">⇩</div><h2>Export a complete backup</h2><p>Download JSON containing projects, budgets, maintenance history, photos, and receipts. Keep a copy somewhere safe.</p><button className="button primary" onClick={()=>downloadBackup(db)}>Download backup</button></section>
-            <section className="panel"><div className="panel-icon">⇧</div><h2>Restore a backup</h2><p>Import a backup previously exported from this app. Restoring replaces everything currently in this browser.</p><label className="button secondary file-label">Choose backup file<input type="file" accept=".json,application/json" onChange={async e=>{const f=e.target.files?.[0];if(f)await restore(f);e.target.value='';}}/></label></section></div>
+            <BackupTransfer data={db} lastEdit={lastEdit} lastExport={lastExport} onPrepared={noteExport} onReplace={replaceBackup} onMerge={mergeBackup}/>
             <section className="panel"><h2>Workspace controls</h2><p>Need an example before starting? Load fictional projects and comparisons. This replaces the current workspace.</p><div className="action-line"><button className="button secondary" onClick={()=>{if(window.confirm('Replace all current data with fictional demo projects? Export first if needed.')){patch(()=>demoData());setSelected(null);statusNotice('Fictional demo workspace loaded.');}}}>Load demo workspace</button><button className="button danger" onClick={()=>{if(window.confirm('Permanently remove ALL projects and maintenance records on this device? Export a backup first.')){patch(()=>emptyDatabase());setSelected(null);statusNotice('Local workspace cleared.');}}}>Clear all data</button></div></section>
             <section className="panel"><h2>How your data works</h2><ul className="help-list"><li>Stored in this browser’s IndexedDB database; GitHub Pages does not receive your records.</li><li>Different browsers, phones and private tabs have separate data. No automatic sync.</li><li>Clearing site data can erase your projects. Export regularly, especially before major changes.</li><li>Photos and PDFs are embedded in the JSON backup. Large attachments make backups larger.</li><li>For privacy, exports are created on-device. No bank access, purchase automation or shopping data collection.</li></ul></section>
           </div>}
@@ -226,6 +239,7 @@ function ProjectEditor({project:p,allProjects,tab,setTab,patch,back,remove,alert
 function MaintenanceView({items,projects,equipment,change,changeEquipment,unlinkEquipment}:{items:MaintenanceItem[];projects:Project[];equipment:EquipmentItem[];change:(fn:(items:MaintenanceItem[])=>MaintenanceItem[])=>void;changeEquipment:(fn:(items:EquipmentItem[])=>EquipmentItem[])=>void;unlinkEquipment:(id:string)=>void}){
  const [selected,setSelected]=useState<string|null>(null);
  const [showPresets,setShowPresets]=useState(false);
+ const [section,setSection]=useState<'upcoming'|'tasks'|'history'>('upcoming');
  const [presetMode,setPresetMode]=useState<'home'|'seasonal'>('home');
  const [completing,setCompleting]=useState<string|null>(null);
  const [showEquipment,setShowEquipment]=useState(false);
@@ -252,7 +266,7 @@ function MaintenanceView({items,projects,equipment,change,changeEquipment,unlink
   setCompleting(null);setNotice('Completed service saved. The next due date has been recalculated from the logged date.');
  }
  function openPresets(mode:'home'|'seasonal'){
-  setPresetMode(mode);setShowPresets(true);
+  setSection('tasks');setPresetMode(mode);setShowPresets(true);
   setPicks(mode==='home'?MAINTENANCE_PRESETS.filter(p=>p.defaultSelected).map(p=>p.key):[]);
  }
  const available=MAINTENANCE_PRESETS.filter(p=>!isPresetInstalled(p,items));
@@ -293,16 +307,25 @@ function MaintenanceView({items,projects,equipment,change,changeEquipment,unlink
   </section>
   </div></div></div>;}
  return <div>
-  <div className="page-heading"><div><h1>Stay ahead of maintenance.</h1><p>Simple household routines and reminders, stored on this device.</p></div><div className="action-line"><button className="button secondary" onClick={()=>{setEquipmentFocus('');setShowEquipment(true);}}>▣ Equipment ({equipment.length})</button><button className="button secondary" onClick={()=>showPresets&&presetMode==='home'?setShowPresets(false):openPresets('home')}>{showPresets&&presetMode==='home'?'Close suggestions':'+ Household checklist'}</button><button className="button primary" onClick={add}>+ Custom task</button></div></div>
+  <div className="page-heading"><div><h1>Stay ahead of maintenance.</h1><p>Simple household routines and reminders, stored on this device.</p></div><div className="action-line"><button className="button secondary" onClick={()=>{setEquipmentFocus('');setShowEquipment(true);}}>▣ Equipment ({equipment.length})</button><button className="button secondary" onClick={()=>showPresets&&presetMode==='home'&&section==='tasks'?setShowPresets(false):openPresets('home')}>{showPresets&&presetMode==='home'?'Close suggestions':'+ Household checklist'}</button><button className="button primary" onClick={add}>+ Custom task</button></div></div>
   {notice&&<div className="maintenance-notice" role="status">{notice} <button onClick={()=>setNotice('')}>Dismiss</button></div>}
   <div className="maintenance-summary"><span><strong>{items.filter(m=>dueMaintenance(m,today()).due).length}</strong> due now</span><span><strong>{items.filter(m=>dueMaintenance(m,today()).soon).length}</strong> coming up</span><span><strong>{items.filter(m=>{const d=dueMaintenance(m,today());return !d.dueDate&&d.dueHours===null;}).length}</strong> need first date</span></div>
-  {showPresets&&<section className="panel maintenance-templates"><h2>{presetMode==='seasonal'?'Choose seasonal home routines':'Choose household routines'}</h2><p className="subtle">All frequencies can be edited. Adding does not imply equipment ownership, completed work, or a due date. Existing records won't be replaced. For seasonal tasks, set your preferred first due date in the appropriate season.</p>
+
+  <div className="maintenance-sections" role="group" aria-label="Maintenance views">
+   <button className={section==='upcoming'?'active':''} onClick={()=>setSection('upcoming')}>Upcoming & supplies</button>
+   <button className={section==='tasks'?'active':''} onClick={()=>setSection('tasks')}>All routines ({items.length})</button>
+   <button className={section==='history'?'active':''} onClick={()=>setSection('history')}>History & spending</button>
+  </div>
+  {section==='upcoming'&&<>  <MaintenanceAgenda items={items} open={id=>{setNotice('');setSelected(id);}} complete={markDone} openSeasonal={()=>openPresets('seasonal')}/>
+  <MaintenanceShoppingPanel items={items} restock={recordRestock} open={id=>{setNotice("");setSelected(id);}}/>
+</>}
+  {section==='tasks'&&<>  {showPresets&&<section className="panel maintenance-templates"><h2>{presetMode==='seasonal'?'Choose seasonal home routines':'Choose household routines'}</h2><p className="subtle">All frequencies can be edited. Adding does not imply equipment ownership, completed work, or a due date. Existing records won't be replaced. For seasonal tasks, set your preferred first due date in the appropriate season.</p>
    {visibleGroups.map(group=><div className="preset-group" key={group}><h3>{group}</h3><div className="preset-list">{MAINTENANCE_PRESETS.filter(p=>p.group===group).map(p=>{const installed=isPresetInstalled(p,items);return <label key={p.key} className={`preset-row ${installed?'already-added':''}`}><input type="checkbox" disabled={installed} checked={installed||picks.includes(p.key)} onChange={e=>setPicks(old=>e.target.checked?[...old,p.key]:old.filter(k=>k!==p.key))}/><span><strong>{p.title}</strong><small>{p.asset} · {p.months===1?'Monthly':`Every ${p.months} months`}{installed?' · Already added':''}</small></span></label>})}</div></div>)}
    <div className="preset-actions"><button className="button primary" disabled={count===0} onClick={installPresets}>Add {count} selected item{count===1?'':'s'}</button><span>Only selected tasks are stored, and no prior service is assumed.</span></div>
   </section>}
-  <MaintenanceAgenda items={items} open={id=>{setNotice('');setSelected(id);}} complete={markDone} openSeasonal={()=>openPresets('seasonal')}/>
-  <MaintenanceShoppingPanel items={items} restock={recordRestock} open={id=>{setNotice("");setSelected(id);}}/>
   {sorted.length?<div className="maintenance-list">{sorted.map(m=>{const d=dueMaintenance(m,today()),st=info(m);return <div key={m.id} className="maintenance-row"><button className="maintenance-card" onClick={()=>{setNotice('');setSelected(m.id);}}><span className="category-icon">{ICONS[m.category]}</span><span className="maintenance-title"><strong>{m.title}</strong><small>{m.asset||m.category} · {(m.intervalMonths??0)>0?`Every ${m.intervalMonths} mo`:m.intervalDays>0?`Every ${m.intervalDays} days`:'Usage/custom'}</small></span><span className="maintenance-when">{d.dueDate?shortDate(d.dueDate):'Set first date'}<Chip tone={st.tone}>{st.label}</Chip></span><span>→</span></button><button className="maintenance-complete" onClick={()=>markDone(m.id)}>✓ Done today</button></div>})}</div>:<EmptyState title="Start your home checklist" body="Choose suggested routines, then enter real due dates or service history. No sample maintenance is automatically imported." action="Choose household checklist" onClick={()=>openPresets('home')}/>}
   {!showPresets&&available.length>0&&items.length>0&&<button className="add-more-maintenance" onClick={()=>openPresets('home')}>+ Add more suggested routines</button>}
+</>}
+  {section==='history'&&<MaintenanceHistory items={items} equipment={equipment} openTask={id=>{setNotice('');setSelected(id);}}/>}
  </div>;
 }

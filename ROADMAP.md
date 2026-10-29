@@ -11,11 +11,15 @@ The product goal is **finish useful household work and avoid surprise spending**
 - [x] Guided completion with actual costs, receipts, used parts and opt-in stock deduction
 - [x] Upcoming maintenance agenda (30/60 days) and low-stock thresholds
 - [x] Opt-in spring/summer/fall/winter home care templates
+- [x] Equipment search across appliance labels and linked replacement SKUs with warranty alerts
+- [x] Yearly actual service spending, receipt history and cost-by-equipment reports
+- [x] Manual cross-device share/import, non-destructive new-record merge previews and backup reminders
 - [x] Versioned JSON export/restore, local IndexedDB, offline PWA and CI
 
 ## Next — high value, low complexity
-1. **Find equipment fast.** Search appliances, model/part numbers, locations and service history, plus warranty-expiry summaries.
-2. **Safer mobile backup.** Make export reminders visible when a user has edited data without a recent export; keep reliable restore and attachment-size safeguards.
+1. **Opt-in continuous sync, if requested.** Requires user-selected authentication and backend, private per-user access controls, encrypted transport, offline queues and conflict resolution. The app already has manual share/merge, no backend needed.
+2. **Restore safety and backups.** Add archive snapshots/undo checkpoints if browser storage grows; do not silently discard edits.
+3. **Focus the home screen.** One unified today/this-week work list combining home projects, due maintenance and small wins.
 
 ## Later — consider only if needed
 6. Compare multiple written repair/contractor quotes side-by-side and save vendor documents.

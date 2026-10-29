@@ -147,3 +147,14 @@ Schema v3 migrates valid v1 and v2 browser snapshots and JSON backups without dr
 **Seasonal home checklist** offers separate Spring/Summer/Fall/Winter suggestions suited to typical Midwestern maintenance. Suggestions are opt-in, avoid holiday-display wiring inventory and do not fabricate dates or service completions. Set a first due date yourself. Recurrence is yearly from each completed service.
 
 Service records can optionally contain a local receipt and used-part references without changing the v3 database version or invalidating older backups. Export/restore includes attached receipts; keep backups private.
+
+
+## Search, annual reports and device transfers
+
+**Maintenance → Equipment** searches appliance name, manufacturer, model and serial numbers, locations, and replacement-part SKUs on linked maintenance tasks. The warranty section lists expired or expiring-in-90-day equipment from user-entered dates.
+
+**Maintenance → History & spending** summarizes recorded maintenance service costs by year, month and equipment, with notes and receipt links. These totals are intentionally separate from Project expenses, because the same purchase may have been recorded in both places.
+
+**Backup & data** now includes a clearer two-step workflow. Download or use the operating-system Share sheet (where supported) to send a private JSON backup to Files or AirDrop; import it on the second device. Preview either **Merge only new records** (matches by stable IDs, does not overwrite existing edits and reports conflicts) or **Replace all data** (explicit confirmation). Last-export metadata is saved only on the local browser, and the app suggests backing up after changes. This is manual transfer—not automatic continuous sync. It needs no account or backend.
+
+An optional, privacy-preserving multi-device cloud sync with authentication and conflict resolution remains a separate future choice. Never store backups, appliance serials or home expenses in this public GitHub repository.
