@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {Database} from './types';
 import {validateBackup} from './storage';
+import {snapshotDifferences} from './sync-diff.mjs';
 import {cloudSettings,configureCloud,forgetCloud,getCloudSession,getSession,signInCloud,signUpCloud,signOutCloud,
  listHomes,createHome,createInvite,joinHome,listMembers,removeMember,fetchSnapshot,uploadSnapshot,snapshotHash,readAnchor,setAnchor,bindLocalHome,localBoundToHome} from './cloud-client';
 import type {HomeLink,CloudSnapshot,MemberInfo} from './cloud-client';
@@ -64,7 +65,9 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
     replaceRef.current(remote.document);bindLocalHome(home);setAnchor(home,remote.revision,await snapshotHash(remote.document));
     setLastSynced(new Date().toLocaleString());if(!isAutomatic)setStatus('Cloud changes downloaded.');return;
    }
-   setConflict(true);setStatus('Both this device and the cloud have changed. Nothing was overwritten. Export a backup and review the versions below.');
+   setConflict(true);
+   setEnabled(false);localStorage.setItem('hpp-auto-sync','no');
+   setStatus('Sync paused: both this device and the household changed. Download both versions and review the differences. Nothing was overwritten.');
   }catch(e){setStatus(e instanceof Error?e.message:'Sync could not complete. Local data is untouched.');}
   finally{working.current=false;if(!isAutomatic)setBusy(false);}
  },[home,ready]);
@@ -101,6 +104,14 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
   if(!window.confirm('Remove '+member.member_email+' from this household? This prevents future cloud access but cannot erase records already copied to their device.'))return;
   await run(async()=>{await removeMember(home,member.member_user_id);setMembers(await listMembers(home));setStatus('Member access revoked for future cloud requests.');});
  }
+ function exportVersion(document:Database,label:string){
+  const content=JSON.stringify(document,null,2);
+  const blob=new Blob([content],{type:'application/json'});
+  const link=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=link;a.download='home-planner-'+label+'-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();window.setTimeout(()=>URL.revokeObjectURL(link),60000);
+  setStatus('Backup prepared. Confirm the file was saved before deciding which version to keep.');
+ }
  async function initializeUpload(){await run(async()=>{
   if(!home)return;
   const remote=await refresh();if(!remote||remote.document!==null){setStatus('Cloud already contains records. Review the cloud copy first.');return;}
@@ -129,7 +140,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
  }
  return <section className="panel household-sync">
   <div className="parts-heading"><div><h2>Optional household sync</h2><p>Backend connected. Sign in to share this home between computer and phone. Offline editing and conflict checks stay enabled.</p></div>
-   <span className="sync-health">{ready?(enabled?'Auto-sync on':'Connected · manual sync'):'Not connected'}</span></div>
+   <span className="sync-health" aria-live="polite">{!ready?'Local only':conflict?'Conflict · paused':busy?'Checking sync…':enabled?'Auto-sync enabled':'Sync paused / manual'}</span></div>
   {!configured?<div className="cloud-config"><p>The approved shared Supabase project is preconfigured. Advanced users may change the backend, but household data is never uploaded without signing in and selecting a home. Never paste a secret/service-role key.</p>
    <details><summary>Advanced: configure a different Supabase backend</summary>
     <label className="field"><span>Project URL</span><input placeholder="https://project-ref.supabase.co" value={url} onChange={e=>setUrl(e.target.value)}/></label>
@@ -149,10 +160,24 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
      <div className="action-line"><button className="button primary" disabled={busy} onClick={()=>void synchronize(false)}>Sync now</button><button className="button secondary" disabled={busy||!ready} onClick={toggle}>{enabled?'Pause automatic sync':'Enable automatic sync'}</button><button className="small-btn" disabled={busy} onClick={()=>void run(async()=>{await refresh();setStatus('Cloud version inspected.');})}>Review cloud</button></div>
      {lastSynced&&<p className="subtle">Last successful sync: {lastSynced}</p>}
      {snapshot&&<div className="cloud-review"><p>Cloud revision {snapshot.revision} · {snapshot.document?'Contains saved home data':'Empty household'} · updated {new Date(snapshot.updated_at).toLocaleString()}</p>
+       {conflict&&snapshot.document&&<section className="cloud-conflict-review" role="alert">
+         <h3>Review differences before choosing</h3>
+         <p>These are record-level differences, not an automatic merge. Export both complete copies before restoring or replacing anything.</p>
+         <div className="action-line"><button className="button secondary" onClick={()=>exportVersion(stateRef.current,'local')}>Download this device's copy</button><button className="button secondary" onClick={()=>exportVersion(snapshot.document as Database,'cloud')}>Download cloud copy</button></div>
+         {snapshotDifferences(data,snapshot.document).groups.map(group=>{
+           const count=group.onlyLocal.length+group.onlyCloud.length+group.changed.length;
+           return count?<details key={group.section} className="sync-diff-group"><summary>{group.section}: {count} difference{count===1?'':'s'}</summary>
+             <ul>{group.onlyLocal.slice(0,8).map(row=><li key={'l'+row.id}>{row.label} — only on this device</li>)}
+             {group.onlyCloud.slice(0,8).map(row=><li key={'c'+row.id}>{row.label} — only in cloud</li>)}
+             {group.changed.slice(0,8).map(row=><li key={'d'+row.id}>{row.label} — edited on both ({row.fields?.slice(0,6).join(', ')})</li>)}</ul>
+             {count>24&&<small>Some changes are not displayed. Download both backups for a complete record comparison.</small>}
+           </details>:null;
+         })}
+       </section>}
        <div className="action-line">{!snapshot.document&&<button className="button secondary" disabled={busy} onClick={initializeUpload}>Upload this device as starting copy</button>}
        {!!snapshot.document&&<button className="button secondary" disabled={busy} onClick={useCloud}>Use cloud copy on this device</button>}
        {!!snapshot.document&&<button className="button danger-outline" disabled={busy} onClick={overrideCloud}>Replace shared cloud with this device</button>}</div>
-       {conflict&&<p className="transfer-warning">Conflict detected. Automatic synchronization is paused for this version until you choose which copy to keep. Export a backup before resolving.</p>}
+       {conflict&&<p className="transfer-warning">Sync is paused. Using the cloud copy replaces local records; replacing the cloud copy overwrites shared records for all household members. Export both copies first.</p>}
      </div>}
      <details className="cloud-sharing"><summary>Household sharing and invitations</summary>
        {homes.find(h=>h.household_id===home)?.role==='owner'&&<><p className="subtle">Share one-use invite codes privately with other adults. They must create an account before joining.</p><button className="button secondary" disabled={busy} onClick={generateInvite}>Generate 7-day invite code</button>{invite&&<div className="cloud-invite"><code>{invite}</code><button className="small-btn" onClick={()=>void navigator.clipboard.writeText(invite).then(()=>setStatus('Invite code copied.'))}>Copy code</button></div>}
