@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
 import type { Attachment, Database, DecisionOption, Expense, FutureCost, MaintenanceItem, Material, Project, Quote, ServiceEntry } from './types';
-import { CATEGORIES, STATUSES, emptyDatabase, newMaintenance, newProject, today, uid } from './types';
+import { CATEGORIES, STATUSES, emptyDatabase, newEquipment, newMaintenance, newProject, today, uid } from './types';
 import { money, fromDollars, dollars, clamp, projectCost, decisionCost, sortProjects, priority, dueMaintenance, dayDiff } from './logic.mjs';
 import { attachmentFromFile, downloadBackup, load, save, validateBackup } from './storage';
 import { demoData } from './demo';
@@ -11,6 +11,11 @@ import { EquipmentInventory } from './EquipmentInventory';
 import { MaintenanceCompletion } from './MaintenanceCompletion';
 import { MaintenanceAgenda } from './MaintenanceAgenda';
 import { MaintenanceHistory } from './MaintenanceHistory';
+import { TodayDashboard } from './TodayDashboard';
+import { GuidedSetup } from './GuidedSetup';
+import { QuickCapture } from './QuickCapture';
+import type { QuickCaptureRequest } from './QuickCapture';
+import { HomeReference } from './HomeReference';
 import { BackupTransfer } from './BackupTransfer';
 import { mergeNewRecords } from './safe-transfer.mjs';
 import type { CompletionDetails } from './maintenance-enhancements.mjs';
@@ -22,7 +27,7 @@ type Page = 'overview'|'projects'|'maintenance'|'data';
 type Filter = 'all'|'quick'|'cheap'|'overdue'|'waiting'|'month';
 type EditorTab = 'plan'|'tasks'|'budget'|'materials'|'decisions'|'files';
 const ICONS: Record<string,string> = {Home:'⌂',Vehicles:'🚙','Holiday Displays':'✦',Electronics:'◈',Family:'♡',Repairs:'🔧',Maintenance:'☷',Other:'◻'};
-const NAV:[Page,string,string][] = [['overview','Overview','▦'],['projects','Projects','▤'],['maintenance','Maintenance','◷'],['data','Backup & data','⇅']];
+const NAV:[Page,string,string][] = [['overview','Today','▦'],['projects','Projects','▤'],['maintenance','Maintenance','◷'],['data','Backup & data','⇅']];
 const SIMPLE_DATE=/^\d{4}-\d{2}-\d{2}$/;
 function shortDate(iso:string){return SIMPLE_DATE.test(iso)?new Date(iso+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'Not set';}
 function safeLink(url:string){return /^https?:\/\//i.test(url)?url:undefined;}
@@ -58,6 +63,9 @@ export default function App(){
   const [category,setCategory]=useState('All');
   const [editorTab,setEditorTab]=useState<EditorTab>('plan');
   const [flash,setFlash]=useState('');
+  const [showQuick,setShowQuick]=useState(false);
+  const [showSetup,setShowSetup]=useState(false);
+  const [maintenanceFocus,setMaintenanceFocus]=useState('');
   const [lastEdit,setLastEdit]=useState(()=>{try{return Number(localStorage.getItem('hpp-last-edit')||0);}catch{return 0;}});
   const [lastExport,setLastExport]=useState(()=>{try{return Number(localStorage.getItem('hpp-last-export')||0);}catch{return 0;}});
   function noteExport(){const timestamp=Date.now();setLastExport(timestamp);try{localStorage.setItem('hpp-last-export',String(timestamp));}catch{/* browser storage may be restricted */}}
@@ -103,7 +111,33 @@ export default function App(){
     if(filter==='month')return p.futureCosts.some(x=>x.dueDate.startsWith(month));
     return true;
   });
-  function navigate(next:Page){setSelected(null);setPage(next);window.scrollTo(0,0);}
+  function navigate(next:Page){setSelected(null);setMaintenanceFocus('');setPage(next);window.scrollTo(0,0);}
+  function goMaintenance(id:string){navigate('maintenance');setMaintenanceFocus(id);}
+  function quickCreate(req:QuickCaptureRequest){
+    setShowQuick(false);
+    if(req.kind==='project'){
+      const p=newProject();p.name=req.title.slice(0,120);p.targetDate=req.dueDate;
+      patch(d=>({...d,projects:[p,...d.projects]}));edit(p.id);return;
+    }
+    if(req.kind==='maintenance'){
+      const m=newMaintenance();m.title=req.title;m.firstDueDate=req.dueDate;
+      patch(d=>({...d,maintenance:[m,...d.maintenance]}));goMaintenance(m.id);return;
+    }
+    if(req.projectId&&db?.projects.some(p=>p.id===req.projectId)){
+      patchProject(req.projectId,p=>({...p,tasks:[...p.tasks,{id:uid(),title:req.title,done:false,phase:'',dueDate:req.dueDate}]}));
+      statusNotice('New step saved in the selected project.');
+      navigate('overview');
+    }
+  }
+  function installGuided(names:string[],keys:string[]){
+    patch(d=>{
+      const existing=new Set(d.equipment.map(e=>e.name.trim().toLocaleLowerCase('en-US')));
+      const equipmentAdded=names.filter(n=>!existing.has(n.trim().toLocaleLowerCase('en-US'))).map(name=>({...newEquipment(),name}));
+      const maintenanceAdded=MAINTENANCE_PRESETS.filter(p=>keys.includes(p.key)&&!isPresetInstalled(p,d.maintenance)).map(createFromPreset);
+      return {...d,equipment:[...d.equipment,...equipmentAdded],maintenance:[...d.maintenance,...maintenanceAdded]};
+    });
+    setShowSetup(false);statusNotice('Selected equipment and maintenance routines added. Set real first due dates in Maintenance.');
+  }
   function edit(id:string){setSelected(id);setEditorTab('plan');setPage('projects');window.scrollTo(0,0);}
   function create(){const p=newProject();p.name='Untitled project';patch(d=>({...d,projects:[p,...d.projects]}));edit(p.id);}
   function deleteProject(p:Project){if(window.confirm(`Delete “${p.name}” and all its tasks, expenses and attachments? This cannot be undone without a backup.`)){
@@ -127,14 +161,16 @@ export default function App(){
       <div className="side-note"><span className="status-dot"/> Stored on this device<small>No account or cloud sync</small></div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div className="top-left"><span className="top-kicker">PERSONAL WORKSPACE</span><span className="top-title">{page==='overview'?'Overview':page==='projects'?'Projects':page==='maintenance'?'Maintenance':'Backup & data'}</span></div><div className="top-actions"><span className="save-indicator">{saveError?'⚠ Save error':saving?'Saving…':'✓ Local save'}</span><button className="button primary" onClick={create}>+ New project</button></div></header>
+      <header className="topbar"><div className="top-left"><span className="top-kicker">PERSONAL WORKSPACE</span><span className="top-title">{page==='overview'?'Today':page==='projects'?'Projects':page==='maintenance'?'Maintenance':'Backup & data'}</span></div><div className="top-actions"><span className="save-indicator">{saveError?'⚠ Save error':saving?'Saving…':'✓ Local save'}</span><button className="button primary" onClick={()=>setShowQuick(true)}>+ Quick add</button></div></header>
       <main className="content">
         {db.demo&&<div className="demo-banner"><strong>Sample workspace</strong> — These are fictional projects and amounts. Start fresh under Backup & data before entering personal information. <button onClick={()=>navigate('data')}>Manage sample data</button></div>}
         {saveError&&<div role="alert" className="alert error">{saveError} <button onClick={()=>downloadBackup(db)}>Export now</button></div>}
         {flash&&<div role="status" className="alert">{flash}<button onClick={()=>setFlash('')}>Dismiss</button></div>}
         {selected&&project?<ProjectEditor key={project.id} project={project} allProjects={db.projects} tab={editorTab} setTab={setEditorTab} patch={fn=>patchProject(project.id,fn)} back={()=>setSelected(null)} remove={()=>deleteProject(project)} alert={statusNotice}/>:
         page==='overview'?<>
-          <div className="hero"><div><span className="eyebrow">ONE CLEAR NEXT STEP</span><h1>Make progress at home.</h1><p>See what matters, what it costs, and what you can tackle next.</p></div><button className="button light" onClick={create}>Start a project <span aria-hidden>→</span></button></div>
+          {showSetup&&<GuidedSetup equipment={db.equipment} maintenance={db.maintenance} onInstall={installGuided} onClose={()=>setShowSetup(false)}/>}
+          <TodayDashboard projects={db.projects} maintenance={db.maintenance} onQuickAdd={()=>setShowQuick(true)} onSetup={()=>setShowSetup(true)} onOpenProject={edit} onOpenMaintenance={goMaintenance} onStepDone={(projectId,taskId)=>patchProject(projectId,p=>({...p,tasks:p.tasks.map(t=>t.id===taskId?{...t,done:true}:t)}))}/>
+          <details className="overview-more"><summary>Show all projects, estimates & financial overview</summary>
           <div className="stat-grid"><Stat label="Open projects" value={String(active.length)} sub={`${waiting} waiting on something`}/><Stat label="Spent on open projects" value={money(spent)} sub="Actual recorded purchases"/><Stat label="Current total forecast" value={money(forecast)} sub="Spent + remaining + contingency"/><Stat label="Dated plans this month" value={money(monthPlan)} sub="Excludes undated materials"/></div>
           <div className="section-heading"><div><h2>What should I work on?</h2><p>Actionable, unblocked projects ranked by a visible score or your override.</p></div><SmallBtn onClick={()=>navigate('projects')}>View all projects →</SmallBtn></div>
           {actionable.length?<div className="project-grid">{actionable.slice(0,4).map(p=><ProjectCard key={p.id} p={p} projects={db.projects} open={()=>edit(p.id)}/>)}</div>:<EmptyState title="Your projects start here" body="Add your first project, or load optional fictional examples in Backup & data." action="Create a project" onClick={create}/>}
@@ -142,13 +178,14 @@ export default function App(){
           <div className="quick-grid">{([['quick','Finish in 2 hours','⌁',`${active.filter(p=>p.estimatedHours>0&&p.estimatedHours<=2).length} projects`],['cheap','Remaining under $100','$',`${active.filter(p=>p.budgetCents>0&&Math.max(0,projectCost(p).forecastCents-projectCost(p).spentCents)<=10000).length} projects`],['overdue','Overdue','!',`${overdue} projects`],['waiting','Waiting on others','◷',`${waiting} projects`],['month','Spending this month','▧',money(monthPlan)],['all','All projects','▤',`${db.projects.length} total`]] as [Filter,string,string,string][]).map(([key,name,icon,note])=><button className="quick-card" key={key} onClick={()=>{setFilter(key);navigate('projects');}}><span className="quick-icon">{icon}</span><strong>{name}</strong><small>{note}</small><span className="quick-arrow">↗</span></button>)}</div>
           {(db.maintenance.length>0||db.equipment.length>0)&&((!lastExport&&db.projects.length+db.maintenance.length+db.equipment.length>=3)||(lastEdit>lastExport&&Date.now()-lastExport>7*86400000))&&<div className="backup-nudge"><strong>Keep your home records safe</strong><span>{!lastExport?'No backup prepared on this device yet.':'Changes have been made since your last export.'}</span><button className="small-btn" onClick={()=>navigate('data')}>Backup / transfer →</button></div>}
           {serviceDue>0&&<div className="maintenance-callout"><span>◷</span><div><strong>{serviceDue} maintenance item(s) due or approaching</strong><p>Review planned servicing and warranties.</p></div><button className="button secondary" onClick={()=>navigate('maintenance')}>Review</button></div>}
+                  </details>
         </>:page==='projects'?<>
           <div className="page-heading"><div><h1>All projects</h1><p>Simple plans, sensible spending, clear next actions.</p></div><button className="button primary" onClick={create}>+ Add project</button></div>
           <div className="toolbar"><input type="search" placeholder="Search projects or next actions…" aria-label="Search projects" value={query} onChange={e=>setQuery(e.target.value)}/><Select value={category} onChange={setCategory} options={['All',...CATEGORIES]}/></div>
           <div className="filter-chips" aria-label="Project filters">{([['all','All'],['quick','≤ 2 hours'],['cheap','Under $100'],['overdue','Overdue'],['waiting','Waiting'],['month','This month']] as [Filter,string][]).map(([key,title])=><button key={key} onClick={()=>setFilter(key)} className={filter===key?'active':''}>{title}</button>)}</div>
           <p className="results-note">{shown.length} project{shown.length===1?'':'s'} · Completed items are included in All · Under $100 uses remaining estimated cost</p>
           {shown.length?<div className="project-grid">{shown.map(p=><ProjectCard key={p.id} p={p} projects={db.projects} open={()=>edit(p.id)}/>)}</div>:<EmptyState title="No matching projects" body="Try a different filter or add a new project." action="Add project" onClick={create}/>}
-        </>:page==='maintenance'?<MaintenanceView items={db.maintenance} projects={db.projects} equipment={db.equipment} change={fn=>patch(d=>({...d,maintenance:fn(d.maintenance)}))} changeEquipment={fn=>patch(d=>({...d,equipment:fn(d.equipment)}))} unlinkEquipment={id=>patch(d=>({...d,maintenance:d.maintenance.map(m=>m.equipmentId===id?{...m,equipmentId:''}:m)}))} />:
+        </>:page==='maintenance'?<MaintenanceView key={maintenanceFocus||'main'} focusId={maintenanceFocus} onOpenProject={edit} items={db.maintenance} projects={db.projects} equipment={db.equipment} change={fn=>patch(d=>({...d,maintenance:fn(d.maintenance)}))} changeEquipment={fn=>patch(d=>({...d,equipment:fn(d.equipment)}))} unlinkEquipment={id=>patch(d=>({...d,maintenance:d.maintenance.map(m=>m.equipmentId===id?{...m,equipmentId:''}:m)}))} />:
           <div className="data-page"><div className="page-heading"><div><h1>Keep your plans safe.</h1><p>Your data lives in this browser, on this device, until you export it.</p></div></div>
             <BackupTransfer data={db} lastEdit={lastEdit} lastExport={lastExport} onPrepared={noteExport} onReplace={replaceBackup} onMerge={mergeBackup}/>
             <section className="panel"><h2>Workspace controls</h2><p>Need an example before starting? Load fictional projects and comparisons. This replaces the current workspace.</p><div className="action-line"><button className="button secondary" onClick={()=>{if(window.confirm('Replace all current data with fictional demo projects? Export first if needed.')){patch(()=>demoData());setSelected(null);statusNotice('Fictional demo workspace loaded.');}}}>Load demo workspace</button><button className="button danger" onClick={()=>{if(window.confirm('Permanently remove ALL projects and maintenance records on this device? Export a backup first.')){patch(()=>emptyDatabase());setSelected(null);statusNotice('Local workspace cleared.');}}}>Clear all data</button></div></section>
@@ -156,6 +193,7 @@ export default function App(){
           </div>}
       </main>
     </div>
+    {showQuick&&<QuickCapture projects={db.projects} onCreate={quickCreate} onClose={()=>setShowQuick(false)}/>}
     <nav className="mobile-nav" aria-label="Mobile navigation">{NAV.map(([id,label,icon])=><button key={id} onClick={()=>navigate(id)} className={page===id?'selected':''}><span>{icon}</span><small>{label==='Backup & data'?'Backup':label}</small></button>)}</nav>
   </div>;
 }
@@ -236,10 +274,10 @@ function ProjectEditor({project:p,allProjects,tab,setTab,patch,back,remove,alert
   </div>;
 }
 
-function MaintenanceView({items,projects,equipment,change,changeEquipment,unlinkEquipment}:{items:MaintenanceItem[];projects:Project[];equipment:EquipmentItem[];change:(fn:(items:MaintenanceItem[])=>MaintenanceItem[])=>void;changeEquipment:(fn:(items:EquipmentItem[])=>EquipmentItem[])=>void;unlinkEquipment:(id:string)=>void}){
- const [selected,setSelected]=useState<string|null>(null);
+function MaintenanceView({items,projects,equipment,focusId,onOpenProject,change,changeEquipment,unlinkEquipment}:{items:MaintenanceItem[];projects:Project[];equipment:EquipmentItem[];focusId:string;onOpenProject:(id:string)=>void;change:(fn:(items:MaintenanceItem[])=>MaintenanceItem[])=>void;changeEquipment:(fn:(items:EquipmentItem[])=>EquipmentItem[])=>void;unlinkEquipment:(id:string)=>void}){
+ const [selected,setSelected]=useState<string|null>(focusId||null);
  const [showPresets,setShowPresets]=useState(false);
- const [section,setSection]=useState<'upcoming'|'tasks'|'history'>('upcoming');
+ const [section,setSection]=useState<'upcoming'|'tasks'|'history'|'reference'>('upcoming');
  const [presetMode,setPresetMode]=useState<'home'|'seasonal'>('home');
  const [completing,setCompleting]=useState<string|null>(null);
  const [showEquipment,setShowEquipment]=useState(false);
@@ -315,6 +353,7 @@ function MaintenanceView({items,projects,equipment,change,changeEquipment,unlink
    <button className={section==='upcoming'?'active':''} onClick={()=>setSection('upcoming')}>Upcoming & supplies</button>
    <button className={section==='tasks'?'active':''} onClick={()=>setSection('tasks')}>All routines ({items.length})</button>
    <button className={section==='history'?'active':''} onClick={()=>setSection('history')}>History & spending</button>
+   <button className={section==='reference'?'active':''} onClick={()=>setSection('reference')}>Home reference</button>
   </div>
   {section==='upcoming'&&<>  <MaintenanceAgenda items={items} open={id=>{setNotice('');setSelected(id);}} complete={markDone} openSeasonal={()=>openPresets('seasonal')}/>
   <MaintenanceShoppingPanel items={items} restock={recordRestock} open={id=>{setNotice("");setSelected(id);}}/>
@@ -327,5 +366,7 @@ function MaintenanceView({items,projects,equipment,change,changeEquipment,unlink
   {!showPresets&&available.length>0&&items.length>0&&<button className="add-more-maintenance" onClick={()=>openPresets('home')}>+ Add more suggested routines</button>}
 </>}
   {section==='history'&&<MaintenanceHistory items={items} equipment={equipment} openTask={id=>{setNotice('');setSelected(id);}}/>}
+  {section==='reference'&&<HomeReference equipment={equipment} maintenance={items} projects={projects} openEquipment={id=>{setEquipmentFocus(id);setShowEquipment(true);}} openMaintenance={id=>{setSelected(id);}} openProject={onOpenProject}/>}
+
  </div>;
 }

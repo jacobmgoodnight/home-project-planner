@@ -60,3 +60,13 @@ Future inventory import may use a mapping `{sourceApp, sourceId, projectId, mate
 - Last-export reminders are localStorage metadata, advisory only. Do not infer that a download/share was actually saved on another device; IndexedDB remains the authoritative data.
 - Warranty dates are user-entered and may be expired. Equipment search includes linked maintenance part numbers; do not index serials remotely or prefill personal identifiers.
 - Maintenance service summaries count ONLY dated costCents entries from Maintenance. Those may overlap user-entered project expenses; never merge totals automatically.
+
+
+## Tidy product experience
+
+- Keep the four primary navigation tabs. Today surfaces only actionable work; the earlier budget and project overview remains accessible in a collapsed section.
+- Quick capture must never invent a service completion or schedule; a project step must belong to an explicitly selected existing project.
+- Guided setup adds only user-selected equipment/routine presets, with no guessed appliance ownership, model, price, or service due date.
+- Calendar export is a user-triggered .ics snapshot of current due dates with one-day alerts, not a live subscription. No duplicate automated entries or external calendar APIs.
+- Home reference reuses local existing equipment photos, optional manuals, warranties, service receipts, replacement part links and project attachments. It never uploads personal data.
+- Equipment documents?: Attachment[] is optional for prior v3 snapshots; preserve v1-v3 backup restoration and validation.

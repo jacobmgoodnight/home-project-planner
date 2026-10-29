@@ -158,3 +158,14 @@ Service records can optionally contain a local receipt and used-part references 
 **Backup & data** now includes a clearer two-step workflow. Download or use the operating-system Share sheet (where supported) to send a private JSON backup to Files or AirDrop; import it on the second device. Preview either **Merge only new records** (matches by stable IDs, does not overwrite existing edits and reports conflicts) or **Replace all data** (explicit confirmation). Last-export metadata is saved only on the local browser, and the app suggests backing up after changes. This is manual transfer—not automatic continuous sync. It needs no account or backend.
 
 An optional, privacy-preserving multi-device cloud sync with authentication and conflict resolution remains a separate future choice. Never store backups, appliance serials or home expenses in this public GitHub repository.
+
+
+## Tidy Today workspace, guided setup, calendar and home reference book
+
+The primary navigation remains **Today / Projects / Maintenance / Backup & data**. Today combines scheduled maintenance, project steps due this week and quick unblocked projects. Detailed financial overview is available in a collapsed section instead of overwhelming the home screen.
+
+Use **Quick add** from the header for an unchecked project step, an unscheduled or dated maintenance task, or a planned project; no full form is required. **Guided setup** on Today presents selectable equipment and standard routines. All suggestions are opt-in and install without invented model numbers, completed service history or due dates.
+
+Open **Maintenance → Upcoming & supplies → Calendar reminders** to export an iCalendar (.ics) file. It contains one all-day event for each maintenance task with a real next due date and a reminder one day before. Import the file in Apple, Google or Outlook Calendar. It is a snapshot, not live calendar sync: after completing service, re-export and manage old calendar entries as needed.
+
+Open **Maintenance → Home reference** for one searchable view of equipment photos, manuals, warranty dates, linked part numbers, receipts and project attachments. Save PDF or image manuals in **Maintenance → Equipment → [item] → Manuals & warranty files**. These are saved locally, included in JSON backups, and are never uploaded to the public repository.

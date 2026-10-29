@@ -2,6 +2,7 @@ import {useState} from 'react';
 import type {MaintenanceItem} from './types';
 import {today} from './types';
 import {maintenanceAgenda,lowStockRows} from './maintenance-enhancements.mjs';
+import {CalendarExport} from './CalendarExport';
 
 function pretty(date:string) {return new Date(date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});}
 function seasonNow() {
@@ -25,6 +26,7 @@ export function MaintenanceAgenda({items,open,complete,openSeasonal}:{items:Main
    <div className="parts-heading"><div><h2>Upcoming maintenance</h2><p>A practical view of real due dates, with no guessed schedule.</p></div>
     <div className="agenda-switch"><button className={horizon===30?'active':''} onClick={()=>setHorizon(30)}>30 days</button><button className={horizon===60?'active':''} onClick={()=>setHorizon(60)}>60 days</button></div>
    </div>
+   <details className="calendar-settings"><summary>Calendar reminders</summary><CalendarExport items={items}/></details>
    <div className="agenda-stats"><span><strong>{agenda.overdue.length}</strong> due / overdue</span><span><strong>{agenda.upcoming.length}</strong> next {horizon} days</span><span><strong>{agenda.unscheduled.length}</strong> unscheduled</span></div>
    {agenda.overdue.length>0&&<div className="agenda-section"><h3>Due now / overdue</h3>{agenda.overdue.map(row=>renderRow(row.item,pretty(row.dueDate)+(row.daysUntil<0?' · '+Math.abs(row.daysUntil)+' days overdue':' · due today')))}</div>}
    {agenda.upcoming.length>0&&<div className="agenda-section"><h3>Coming up</h3>{agenda.upcoming.map(row=>renderRow(row.item,pretty(row.dueDate)+' · in '+row.daysUntil+' days'))}</div>}

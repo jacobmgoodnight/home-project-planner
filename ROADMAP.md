@@ -14,6 +14,10 @@ The product goal is **finish useful household work and avoid surprise spending**
 - [x] Equipment search across appliance labels and linked replacement SKUs with warranty alerts
 - [x] Yearly actual service spending, receipt history and cost-by-equipment reports
 - [x] Manual cross-device share/import, non-destructive new-record merge previews and backup reminders
+- [x] Unified Today view: scheduled maintenance, dated project steps and quick wins
+- [x] Opt-in guided home/equipment setup and minimal Quick add
+- [x] iCalendar export of actual next maintenance due dates with one-day alerts
+- [x] Searchable home reference book with local manuals, labels, receipts and parts
 - [x] Versioned JSON export/restore, local IndexedDB, offline PWA and CI
 
 ## Next — high value, low complexity
