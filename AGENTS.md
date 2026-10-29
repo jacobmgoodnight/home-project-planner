@@ -78,3 +78,5 @@ Future inventory import may use a mapping `{sourceApp, sourceId, projectId, mate
 - Cloud snapshot writes must be optimistic CAS revision-gated. An offline conflict pauses sync; no auto-merge or overwrite of changed shared records. Autosync only while app open. Local IndexedDB remains canonical until user opts in.
 - Browser notifications are device permission controlled, on demand and foreground only. Weekly recap stays local or manually shared.
 - Opt-in QR uses an external API on click; only a public app URL and opaque equipment ID are transferred. Model numbers, names and serials must never be included in the QR service request.
+
+- Cloud data must be bound to the exact household ID, signed-in user, and Supabase project URL before auto-sync begins. Switching households pauses auto-sync; never upload data from a prior household by reusing an old revision anchor.

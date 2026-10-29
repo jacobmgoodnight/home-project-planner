@@ -20,7 +20,18 @@ export function configureCloud(url:string,key:string){
  write(CONF,{url:normalized,key:key.trim()});
  localStorage.removeItem(SESSION);
 }
-export function forgetCloud(){localStorage.removeItem(CONF);localStorage.removeItem(SESSION);}
+export function forgetCloud(){localStorage.removeItem(CONF);localStorage.removeItem(SESSION);localStorage.removeItem('hpp-cloud-bound-home');}
+export function bindLocalHome(homeId:string){
+ const user=getCloudSession()?.user.id,cfg=cloudSettings();
+ if(!user||!cfg)throw new Error('Sign in before connecting a household.');
+ write('hpp-cloud-bound-home',{homeId,user,project:cfg.url});
+}
+export function localBoundToHome(homeId:string){
+ const existing=read<{homeId:string;user:string;project:string}>('hpp-cloud-bound-home');
+ const user=getCloudSession()?.user.id,cfg=cloudSettings();
+ return !!existing&&!!user&&!!cfg&&existing.homeId===homeId&&existing.user===user&&existing.project===cfg.url;
+}
+
 export function getCloudSession(){return read<Session>(SESSION);}
 async function api(path:string,options:{method?:string;body?:unknown;secure?:boolean}={}){
  const cfg=cloudSettings();if(!cfg)throw new Error('Cloud backend has not been configured.');

@@ -45,3 +45,5 @@ Run `npm run check`, verify migration of v1/v2/v3 backups, test on mobile, inspe
 - [x] Mobile camera capture on supported devices and opt-in QR equipment labels.
 - [ ] Provision a dedicated Supabase project in the owner's selected organization; apply schema; verify RLS as owner/member/outsider; test two devices and conflicting offline changes.
 - [ ] For future unattended reminders: implement a permissioned push/subscription server and explicit opt-in, rather than pretending browser notifications work when the PWA is closed.
+
+- [x] Add explicit per-household, per-user device binding to prevent cross-household auto-uploads.

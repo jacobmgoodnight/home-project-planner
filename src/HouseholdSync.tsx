@@ -2,7 +2,7 @@ import {useCallback,useEffect,useRef,useState} from 'react';
 import type {Database} from './types';
 import {validateBackup} from './storage';
 import {cloudSettings,configureCloud,forgetCloud,getCloudSession,getSession,signInCloud,signUpCloud,signOutCloud,
- listHomes,createHome,createInvite,joinHome,fetchSnapshot,uploadSnapshot,snapshotHash,readAnchor,setAnchor} from './cloud-client';
+ listHomes,createHome,createInvite,joinHome,fetchSnapshot,uploadSnapshot,snapshotHash,readAnchor,setAnchor,bindLocalHome,localBoundToHome} from './cloud-client';
 import type {HomeLink,CloudSnapshot} from './cloud-client';
 
 export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapshot:Database)=>void}){
@@ -35,6 +35,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
   if(!ready||working.current||!navigator.onLine)return;
   working.current=true;if(!isAutomatic)setBusy(true);
   try{
+   if(!localBoundToHome(home)){setStatus('This device has not been linked to this household. Review and import the shared copy, or explicitly initialize a new household.');return;}
    const remote=await fetchSnapshot(home),local=stateRef.current,anchor=readAnchor(home);
    setSnapshot(remote);setConflict(false);
    const localHash=await snapshotHash(local);
@@ -50,7 +51,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
    }
    if(remote.revision>anchor.revision&&localHash===anchor.hash){
     if(!remote.document||!validateBackup(remote.document))throw new Error('Cloud data failed validation. Your local records are unchanged.');
-    onReplace(remote.document);setAnchor(home,remote.revision,await snapshotHash(remote.document));
+    onReplace(remote.document);bindLocalHome(home);setAnchor(home,remote.revision,await snapshotHash(remote.document));
     setLastSynced(new Date().toLocaleString());if(!isAutomatic)setStatus('Cloud changes downloaded.');return;
    }
    setConflict(true);setStatus('Both this device and the cloud have changed. Nothing was overwritten. Export a backup and review the versions below.');
@@ -90,7 +91,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
   const remote=await refresh();if(!remote||remote.document!==null){setStatus('Cloud already contains records. Review the cloud copy first.');return;}
   if(!window.confirm('Upload this device as the household starting copy? Only household members will have access. Export a local backup first.'))return;
   const local=stateRef.current,hash=await snapshotHash(local),revision=await uploadSnapshot(home,remote.revision,local);
-  setAnchor(home,revision,hash);setStatus('Cloud initialized. Enable automatic sync to use it on both devices.');
+  bindLocalHome(home);setAnchor(home,revision,hash);setStatus('Cloud initialized. Enable automatic sync to use it on both devices.');
  });}
  async function useCloud(){await run(async()=>{
   const remote=await refresh();if(!remote?.document||!validateBackup(remote.document)){setStatus('No valid cloud copy is available.');return;}
@@ -103,10 +104,12 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
   if(!window.confirm('REPLACE the shared household cloud copy with THIS device’s data? Other members may lose newer edits. Export cloud and local backups first.'))return;
   const local=stateRef.current,hash=await snapshotHash(local);
   const revision=await uploadSnapshot(home,remote.revision,local);
-  setAnchor(home,revision,hash);setConflict(false);setStatus('Shared cloud updated to this device’s copy.');
+  bindLocalHome(home);setAnchor(home,revision,hash);setConflict(false);setStatus('Shared cloud updated to this device’s copy.');
  });}
  function toggle(){
-  const next=!enabled;setEnabled(next);localStorage.setItem('hpp-auto-sync',next?'yes':'no');
+  const next=!enabled;
+  if(next&&!localBoundToHome(home)){setStatus('Connect this device to the household first, using Review cloud and Choose cloud copy.');return;}
+  setEnabled(next);localStorage.setItem('hpp-auto-sync',next?'yes':'no');
   setStatus(next?'Auto-sync enabled for this browser while the app is open or reconnects.':'Auto-sync paused; local records are still saved.');
  }
  return <section className="panel household-sync">
@@ -126,7 +129,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
    </div>:
    <div className="cloud-auth">
     <p className="subtle">Signed in: {user} <button className="small-btn" onClick={()=>void run(async()=>{await signOutCloud();setUser('');setHomes([]);setEnabled(false);localStorage.setItem('hpp-auto-sync','no');})}>Sign out</button></p>
-    {homes.length?<><label className="field"><span>Household</span><select value={home} onChange={e=>{setHome(e.target.value);localStorage.setItem('hpp-selected-home',e.target.value);setStatus('Household changed. Review the current cloud version before syncing.');setSnapshot(null);}}>{homes.map(h=><option key={h.household_id} value={h.household_id}>{h.name} ({h.role})</option>)}</select></label>
+    {homes.length?<><label className="field"><span>Household</span><select value={home} onChange={e=>{setEnabled(false);localStorage.setItem('hpp-auto-sync','no');setHome(e.target.value);localStorage.setItem('hpp-selected-home',e.target.value);setStatus('Household changed. Automatic sync is paused; review this household before enabling it.');setSnapshot(null);}}>{homes.map(h=><option key={h.household_id} value={h.household_id}>{h.name} ({h.role})</option>)}</select></label>
      <div className="action-line"><button className="button primary" disabled={busy} onClick={()=>void synchronize(false)}>Sync now</button><button className="button secondary" disabled={busy||!ready} onClick={toggle}>{enabled?'Pause automatic sync':'Enable automatic sync'}</button><button className="small-btn" disabled={busy} onClick={()=>void run(async()=>{await refresh();setStatus('Cloud version inspected.');})}>Review cloud</button></div>
      {lastSynced&&<p className="subtle">Last successful sync: {lastSynced}</p>}
      {snapshot&&<div className="cloud-review"><p>Cloud revision {snapshot.revision} · {snapshot.document?'Contains saved home data':'Empty household'} · updated {new Date(snapshot.updated_at).toLocaleString()}</p>
