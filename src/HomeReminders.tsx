@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import type {Database} from './types';
 import {today} from './types';
 import {reminderItems,weeklyHomeSummary,weeklySummaryText} from './home-engagement.mjs';
@@ -8,6 +8,7 @@ export function HomeReminders({data}:{data:Database}){
  const [weekly,setWeekly]=useState(false);
  const summary=weeklyHomeSummary(data,today()),alerts=reminderItems(data,today());
  const count=alerts.maintenance.length+alerts.warranties.length;
+ const noticeKey='hpp-reminder-shown-'+today();
  async function showNotice(){
   if(!('Notification'in window)){setStatus('Notifications are not available in this browser. Use calendar export instead.');return;}
   if(Notification.permission!=='granted'){setStatus('Enable notifications first.');return;}
@@ -17,15 +18,21 @@ export function HomeReminders({data}:{data:Database}){
   try{
    if('serviceWorker'in navigator){const registration=await navigator.serviceWorker.ready;await registration.showNotification(title,{body,tag:'hpp-home-reminders'});}
    else new Notification(title,{body,tag:'hpp-home-reminders'});
-   setStatus('Reminder shown. Notifications run when you open the app, not when it is closed.');
+   try{localStorage.setItem(noticeKey,'yes');}catch{}
+   setStatus('Reminder shown. This app does not send push alerts while closed.');
   }catch{setStatus('This device could not display a notification. Calendar export remains available.');}
  }
+ useEffect(()=>{
+  if(!enabled||!count||!('Notification' in window)||Notification.permission!=='granted'||document.visibilityState!=='visible')return;
+  try{if(localStorage.getItem(noticeKey)==='yes')return;}catch{}
+  void showNotice();
+ },[enabled,count,noticeKey]);
  async function enable(){
   if(!('Notification'in window)){setStatus('This browser does not support notifications.');return;}
   const permission=await Notification.requestPermission();
   const yes=permission==='granted';setEnabled(yes);
   try{localStorage.setItem('hpp-notifications',yes?'yes':'no');}catch{}
-  setStatus(yes?'Enabled for this device. Use Check reminders to show a notification.':'Permission was not granted.');
+  setStatus(yes?'Enabled for this device. Due reminders will appear at most once per day when you open the app.':'Permission was not granted.');
  }
  function disable(){setEnabled(false);try{localStorage.setItem('hpp-notifications','no');}catch{}setStatus('Reminders disabled for this browser.');}
  async function copy(){
@@ -42,7 +49,7 @@ export function HomeReminders({data}:{data:Database}){
   <div className="engagement-actions"><span><strong>{count}</strong> maintenance / warranty items due within 7 days</span>
    {enabled?<><button className="small-btn" onClick={showNotice}>Check reminders</button><button className="small-btn" onClick={disable}>Turn off</button></>:<button className="small-btn" onClick={enable}>Enable device notifications</button>}
   </div>
-  <p className="subtle">Device notifications require your permission and work only while you use the app. For unattended reminders, import your maintenance calendar.</p>
+  <p className="subtle">With permission, upcoming reminders appear at most once daily when you open the app. Notifications do not run while the app is closed; use calendar export for unattended alerts.</p>
   {weekly&&<div className="weekly-recap"><div className="weekly-numbers"><span><strong>{summary.service.length}</strong> maintenance services</span><span><strong>{summary.completedProjectCount}</strong> completed projects</span><span><strong>{summary.due.length}</strong> due next week</span></div>
    <textarea readOnly rows={Math.min(15,8+summary.due.length)} aria-label="Weekly recap text" value={weeklySummaryText(summary)}/>
    <div className="action-line"><button className="button secondary" onClick={copy}>Copy recap</button><button className="button secondary" onClick={share}>Share recap</button></div>
