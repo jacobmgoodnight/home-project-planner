@@ -100,7 +100,7 @@ function checkMaintenance(v:unknown):v is MaintenanceItem {
 export function validateBackup(data:unknown):data is Database {
   return object(data)&&data.version===3&&typeof data.demo==='boolean'&&array(data.projects)&&array(data.maintenance)&&array(data.equipment)&&
     data.projects.length<=10000&&data.maintenance.length<=10000&&data.equipment.length<=10000&&data.projects.every(checkProject)&&data.maintenance.every(checkMaintenance)&&data.equipment.every(checkEquipment)&&
-    uniqueIds(data.projects)&&uniqueIds(data.maintenance)&&uniqueIds(data.equipment)&&data.maintenance.every(m=>!m.equipmentId||data.equipment.some(e=>e.id===m.equipmentId));
+    uniqueIds(data.projects)&&uniqueIds(data.maintenance)&&uniqueIds(data.equipment)&&data.maintenance.every(m=>!m.equipmentId||(data.equipment as EquipmentItem[]).some(e=>e.id===m.equipmentId));
 }
 export async function readBackup(file:File):Promise<Database> {
   if(file.size>60*1024*1024)throw new Error('Backup is larger than the 60 MB import limit.');
