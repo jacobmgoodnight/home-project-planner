@@ -1,0 +1,12 @@
+import type { Project, MaintenanceItem, DecisionOption } from './types';
+export function money(cents:number):string;
+export function fromDollars(dollars:number|string):number;
+export function dollars(cents:number):string;
+export function clamp(n:number,min:number,max:number):number;
+export function dayDiff(date:string,today:string):number|null;
+export function projectCost(p:Project):{spentCents:number;materialsCents:number;committedCents:number;plannedCents:number;estimatedCents:number;contingencyCents:number;forecastCents:number;budgetRemainingCents:number;forecastHeadroomCents:number};
+export function monthlyPayment(principalCents:number,aprPercent:number,months:number):number;
+export function decisionCost(o:DecisionOption):{paymentCents:number;loanTotalCents:number;interestCents:number;totalCents:number};
+export function priority(p:Project,projects:Project[],today:string):{score:number;reasons:string[]};
+export function sortProjects(projects:Project[],today:string):Project[];
+export function dueMaintenance(item:MaintenanceItem,today:string):{due:boolean;soon:boolean;dueDate:string;dueHours:number|null;dateRemaining:number|null;hourRemaining:number|null};

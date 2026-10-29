@@ -1,0 +1,229 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent, ReactNode } from 'react';
+import type { Attachment, Database, DecisionOption, Expense, FutureCost, MaintenanceItem, Material, Project, Quote, ServiceEntry } from './types';
+import { CATEGORIES, STATUSES, emptyDatabase, newMaintenance, newProject, today, uid } from './types';
+import { money, fromDollars, dollars, clamp, projectCost, decisionCost, sortProjects, priority, dueMaintenance, dayDiff } from './logic.mjs';
+import { attachmentFromFile, downloadBackup, load, readBackup, save, validateBackup } from './storage';
+import { demoData } from './demo';
+
+type Page = 'overview'|'projects'|'maintenance'|'data';
+type Filter = 'all'|'quick'|'cheap'|'overdue'|'waiting'|'month';
+type EditorTab = 'plan'|'tasks'|'budget'|'materials'|'decisions'|'files';
+const ICONS: Record<string,string> = {Home:'⌂',Vehicles:'🚙','Holiday Displays':'✦',Electronics:'◈',Family:'♡',Repairs:'🔧',Maintenance:'☷',Other:'◻'};
+const NAV:[Page,string,string][] = [['overview','Overview','▦'],['projects','Projects','▤'],['maintenance','Maintenance','◷'],['data','Backup & data','⇅']];
+const SIMPLE_DATE=/^\d{4}-\d{2}-\d{2}$/;
+function shortDate(iso:string){return SIMPLE_DATE.test(iso)?new Date(iso+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'Not set';}
+function safeLink(url:string){return /^https?:\/\//i.test(url)?url:undefined;}
+function dollarChange(v:string){return fromDollars(v);}
+function num(v:string){return Math.max(0,Number(v)||0);}
+function TextField({label,children,tip}:{label:string;children:ReactNode;tip?:string}){
+  return <label className="field"><span>{label}</span>{children}{tip&&<small>{tip}</small>}</label>;
+}
+function CurrencyInput({value,onChange,ariaLabel}:{value:number;onChange:(value:number)=>void;ariaLabel?:string}){
+  const [focused,setFocused]=useState(false);
+  const [draft,setDraft]=useState('');
+  return <div className="money-input"><span>$</span><input aria-label={ariaLabel} type="number" min="0" step="0.01" value={focused?draft:dollars(value)}
+    onFocus={e=>{setFocused(true);setDraft(e.target.value);e.target.select();}}
+    onChange={e=>{setDraft(e.target.value);onChange(dollarChange(e.target.value));}}
+    onBlur={()=>setFocused(false)}/></div>;
+}
+function Select({value,onChange,options}:{value:string;onChange:(value:string)=>void;options:readonly string[]}){
+  return <select value={value} onChange={e=>onChange(e.target.value)}>{options.map(x=><option key={x} value={x}>{x}</option>)}</select>;
+}
+function SmallBtn({onClick,children,danger=false}:{onClick:()=>void;children:ReactNode;danger?:boolean}){return <button className={`small-btn ${danger?'danger-text':''}`} type="button" onClick={onClick}>{children}</button>;}
+function Stat({label,value,sub}:{label:string;value:string;sub?:string}){return <div className="stat"><span>{label}</span><strong>{value}</strong>{sub&&<small>{sub}</small>}</div>;}
+function Chip({children,tone='neutral'}:{children:ReactNode;tone?:string}){return <span className={`chip ${tone}`}>{children}</span>;}
+
+export default function App(){
+  const [db,setDb]=useState<Database|null>(null);
+  const [fatal,setFatal]=useState('');
+  const [saveError,setSaveError]=useState('');
+  const [saving,setSaving]=useState(false);
+  const [page,setPage]=useState<Page>('overview');
+  const [selected,setSelected]=useState<string|null>(null);
+  const [filter,setFilter]=useState<Filter>('all');
+  const [query,setQuery]=useState('');
+  const [category,setCategory]=useState('All');
+  const [editorTab,setEditorTab]=useState<EditorTab>('plan');
+  const [flash,setFlash]=useState('');
+  const pending=useRef(Promise.resolve());
+  const ready=useRef(false);
+  const mounted=useRef(true);
+  useEffect(()=>{mounted.current=true;load().then(value=>{
+    if(value&&!validateBackup(value))throw new Error('Stored data has an unsupported or damaged format. No changes were made.');
+    if(mounted.current){ready.current=true;setDb(value||emptyDatabase());}
+  }).catch(e=>setFatal(String(e.message||e)));return ()=>{mounted.current=false;};},[]);
+  useEffect(()=>{
+    if(!ready.current||!db)return;
+    setSaving(true);
+    const snapshot=db;
+    pending.current=pending.current.catch(()=>{}).then(()=>save(snapshot)).then(()=>{
+      if(mounted.current){setSaving(false);setSaveError('');}
+    }).catch((e:unknown)=>{if(mounted.current){setSaving(false);setSaveError(`Local save failed: ${String(e)}. Export a backup before leaving.`);}});
+  },[db]);
+  const patch=(fn:(current:Database)=>Database)=>setDb(prev=>prev?fn(prev):prev);
+  const patchProject=(id:string, fn:(p:Project)=>Project)=>patch(d=>({...d,projects:d.projects.map(p=>p.id===id?{...fn(p),updatedAt:new Date().toISOString()}:p)}));
+  const active=db?.projects.filter(p=>p.status!=='Completed')||[];
+  const sorted=useMemo(()=>db?sortProjects(db.projects,today()):[],[db]);
+  const actionable=sorted.filter(p=>['Active','Planned'].includes(p.status)&&p.blockedBy.every(id=>!db?.projects.some(x=>x.id===id&&x.status!=='Completed')));
+  const project=db?.projects.find(p=>p.id===selected)||null;
+  const month=today().slice(0,7);
+  const monthPlan=active.flatMap(p=>p.futureCosts).filter(x=>x.dueDate.startsWith(month)).reduce((s,x)=>s+x.amountCents,0)||0;
+  const spent=active.reduce((s,p)=>s+projectCost(p).spentCents,0);
+  const forecast=active.reduce((s,p)=>s+projectCost(p).forecastCents,0);
+  const waiting=active.filter(p=>p.status==='Waiting').length;
+  const overdue=active.filter(p=>p.targetDate&&(dayDiff(p.targetDate,today())??0)<0).length;
+  const serviceDue=db?.maintenance.filter(x=>dueMaintenance(x,today()).due||dueMaintenance(x,today()).soon).length||0;
+  const shown=sorted.filter(p=>{
+    if(category!=='All'&&p.category!==category)return false;
+    if(query.trim()&&!`${p.name} ${p.nextAction} ${p.description}`.toLowerCase().includes(query.toLowerCase().trim()))return false;
+    if(filter==='quick')return p.status!=='Completed'&&p.estimatedHours>0&&p.estimatedHours<=2;
+    if(filter==='cheap')return p.status!=='Completed'&&p.budgetCents>0&&Math.max(0,projectCost(p).forecastCents-projectCost(p).spentCents)<=10000;
+    if(filter==='overdue')return p.status!=='Completed'&&!!p.targetDate&&(dayDiff(p.targetDate,today())??0)<0;
+    if(filter==='waiting')return p.status==='Waiting';
+    if(filter==='month')return p.futureCosts.some(x=>x.dueDate.startsWith(month));
+    return true;
+  });
+  function navigate(next:Page){setSelected(null);setPage(next);window.scrollTo(0,0);}
+  function edit(id:string){setSelected(id);setEditorTab('plan');setPage('projects');window.scrollTo(0,0);}
+  function create(){const p=newProject();p.name='Untitled project';patch(d=>({...d,projects:[p,...d.projects]}));edit(p.id);}
+  function deleteProject(p:Project){if(window.confirm(`Delete “${p.name}” and all its tasks, expenses and attachments? This cannot be undone without a backup.`)){
+    patch(d=>({...d,projects:d.projects.filter(x=>x.id!==p.id).map(x=>({...x,blockedBy:x.blockedBy.filter(id=>id!==p.id)})),maintenance:d.maintenance.map(m=>m.projectId===p.id?{...m,projectId:''}:m)}));setSelected(null);
+  }}
+  function statusNotice(message:string){setFlash(message);window.scrollTo({top:0,behavior:'smooth'});}
+  async function restore(file:File){try{
+    const value=await readBackup(file);
+    if(!window.confirm(`Replace all local data with this backup (${value.projects.length} projects, ${value.maintenance.length} maintenance records)? Export your current data first.`))return;
+    patch(()=>value);setSelected(null);navigate('overview');statusNotice('Backup restored. Changes will be saved to this browser.');
+  }catch(e){statusNotice(String(e instanceof Error?e.message:e));}}
+  if(fatal)return <main className="startup"><h1>Local storage could not be opened</h1><p>{fatal}</p><p>The app will not overwrite your existing data. Check private browsing or browser storage settings, then reload.</p><button onClick={()=>location.reload()}>Try again</button></main>;
+  if(!db)return <main className="startup"><h1>Home Project Planner</h1><p>Opening your local projects…</p></main>;
+  return <div className="app-shell">
+    <aside className="sidebar">
+      <div className="brand"><span className="brand-mark">⌂</span><div><strong>Home Project</strong><span>PLANNER</span></div></div>
+      <nav aria-label="Main navigation">{NAV.map(([id,label,icon])=><button key={id} onClick={()=>navigate(id)} className={page===id?'selected':''}><span aria-hidden="true">{icon}</span>{label}</button>)}</nav>
+      <div className="side-note"><span className="status-dot"/> Stored on this device<small>No account or cloud sync</small></div>
+    </aside>
+    <div className="main-shell">
+      <header className="topbar"><div className="top-left"><span className="top-kicker">PERSONAL WORKSPACE</span><span className="top-title">{page==='overview'?'Overview':page==='projects'?'Projects':page==='maintenance'?'Maintenance':'Backup & data'}</span></div><div className="top-actions"><span className="save-indicator">{saveError?'⚠ Save error':saving?'Saving…':'✓ Local save'}</span><button className="button primary" onClick={create}>+ New project</button></div></header>
+      <main className="content">
+        {db.demo&&<div className="demo-banner"><strong>Sample workspace</strong> — These are fictional projects and amounts. Start fresh under Backup & data before entering personal information. <button onClick={()=>navigate('data')}>Manage sample data</button></div>}
+        {saveError&&<div role="alert" className="alert error">{saveError} <button onClick={()=>downloadBackup(db)}>Export now</button></div>}
+        {flash&&<div role="status" className="alert">{flash}<button onClick={()=>setFlash('')}>Dismiss</button></div>}
+        {selected&&project?<ProjectEditor key={project.id} project={project} allProjects={db.projects} tab={editorTab} setTab={setEditorTab} patch={fn=>patchProject(project.id,fn)} back={()=>setSelected(null)} remove={()=>deleteProject(project)} alert={statusNotice}/>:
+        page==='overview'?<>
+          <div className="hero"><div><span className="eyebrow">ONE CLEAR NEXT STEP</span><h1>Make progress at home.</h1><p>See what matters, what it costs, and what you can tackle next.</p></div><button className="button light" onClick={create}>Start a project <span aria-hidden>→</span></button></div>
+          <div className="stat-grid"><Stat label="Open projects" value={String(active.length)} sub={`${waiting} waiting on something`}/><Stat label="Spent on open projects" value={money(spent)} sub="Actual recorded purchases"/><Stat label="Current total forecast" value={money(forecast)} sub="Spent + remaining + contingency"/><Stat label="Dated plans this month" value={money(monthPlan)} sub="Excludes undated materials"/></div>
+          <div className="section-heading"><div><h2>What should I work on?</h2><p>Actionable, unblocked projects ranked by a visible score or your override.</p></div><SmallBtn onClick={()=>navigate('projects')}>View all projects →</SmallBtn></div>
+          {actionable.length?<div className="project-grid">{actionable.slice(0,4).map(p=><ProjectCard key={p.id} p={p} projects={db.projects} open={()=>edit(p.id)}/>)}</div>:<EmptyState title="Your projects start here" body="Add your first project, or load optional fictional examples in Backup & data." action="Create a project" onClick={create}/>}
+          <div className="section-heading"><div><h2>Quick decisions</h2><p>Choose a constraint; see the projects that fit.</p></div></div>
+          <div className="quick-grid">{([['quick','Finish in 2 hours','⌁',`${active.filter(p=>p.estimatedHours>0&&p.estimatedHours<=2).length} projects`],['cheap','Remaining under $100','$',`${active.filter(p=>p.budgetCents>0&&Math.max(0,projectCost(p).forecastCents-projectCost(p).spentCents)<=10000).length} projects`],['overdue','Overdue','!',`${overdue} projects`],['waiting','Waiting on others','◷',`${waiting} projects`],['month','Spending this month','▧',money(monthPlan)],['all','All projects','▤',`${db.projects.length} total`]] as [Filter,string,string,string][]).map(([key,name,icon,note])=><button className="quick-card" key={key} onClick={()=>{setFilter(key);navigate('projects');}}><span className="quick-icon">{icon}</span><strong>{name}</strong><small>{note}</small><span className="quick-arrow">↗</span></button>)}</div>
+          {serviceDue>0&&<div className="maintenance-callout"><span>◷</span><div><strong>{serviceDue} maintenance item(s) due or approaching</strong><p>Review planned servicing and warranties.</p></div><button className="button secondary" onClick={()=>navigate('maintenance')}>Review</button></div>}
+        </>:page==='projects'?<>
+          <div className="page-heading"><div><h1>All projects</h1><p>Simple plans, sensible spending, clear next actions.</p></div><button className="button primary" onClick={create}>+ Add project</button></div>
+          <div className="toolbar"><input type="search" placeholder="Search projects or next actions…" aria-label="Search projects" value={query} onChange={e=>setQuery(e.target.value)}/><Select value={category} onChange={setCategory} options={['All',...CATEGORIES]}/></div>
+          <div className="filter-chips" aria-label="Project filters">{([['all','All'],['quick','≤ 2 hours'],['cheap','Under $100'],['overdue','Overdue'],['waiting','Waiting'],['month','This month']] as [Filter,string][]).map(([key,title])=><button key={key} onClick={()=>setFilter(key)} className={filter===key?'active':''}>{title}</button>)}</div>
+          <p className="results-note">{shown.length} project{shown.length===1?'':'s'} · Completed items are included in All · Under $100 uses remaining estimated cost</p>
+          {shown.length?<div className="project-grid">{shown.map(p=><ProjectCard key={p.id} p={p} projects={db.projects} open={()=>edit(p.id)}/>)}</div>:<EmptyState title="No matching projects" body="Try a different filter or add a new project." action="Add project" onClick={create}/>}
+        </>:page==='maintenance'?<MaintenanceView items={db.maintenance} projects={db.projects} change={fn=>patch(d=>({...d,maintenance:fn(d.maintenance)}))} />:
+          <div className="data-page"><div className="page-heading"><div><h1>Keep your plans safe.</h1><p>Your data lives in this browser, on this device, until you export it.</p></div></div>
+            <div className="data-grid"><section className="panel"><div className="panel-icon">⇩</div><h2>Export a complete backup</h2><p>Download JSON containing projects, budgets, maintenance history, photos, and receipts. Keep a copy somewhere safe.</p><button className="button primary" onClick={()=>downloadBackup(db)}>Download backup</button></section>
+            <section className="panel"><div className="panel-icon">⇧</div><h2>Restore a backup</h2><p>Import a backup previously exported from this app. Restoring replaces everything currently in this browser.</p><label className="button secondary file-label">Choose backup file<input type="file" accept=".json,application/json" onChange={async e=>{const f=e.target.files?.[0];if(f)await restore(f);e.target.value='';}}/></label></section></div>
+            <section className="panel"><h2>Workspace controls</h2><p>Need an example before starting? Load fictional projects and comparisons. This replaces the current workspace.</p><div className="action-line"><button className="button secondary" onClick={()=>{if(window.confirm('Replace all current data with fictional demo projects? Export first if needed.')){patch(()=>demoData());setSelected(null);statusNotice('Fictional demo workspace loaded.');}}}>Load demo workspace</button><button className="button danger" onClick={()=>{if(window.confirm('Permanently remove ALL projects and maintenance records on this device? Export a backup first.')){patch(()=>emptyDatabase());setSelected(null);statusNotice('Local workspace cleared.');}}}>Clear all data</button></div></section>
+            <section className="panel"><h2>How your data works</h2><ul className="help-list"><li>Stored in this browser’s IndexedDB database; GitHub Pages does not receive your records.</li><li>Different browsers, phones and private tabs have separate data. No automatic sync.</li><li>Clearing site data can erase your projects. Export regularly, especially before major changes.</li><li>Photos and PDFs are embedded in the JSON backup. Large attachments make backups larger.</li><li>For privacy, exports are created on-device. No bank access, purchase automation or shopping data collection.</li></ul></section>
+          </div>}
+      </main>
+    </div>
+    <nav className="mobile-nav" aria-label="Mobile navigation">{NAV.map(([id,label,icon])=><button key={id} onClick={()=>navigate(id)} className={page===id?'selected':''}><span>{icon}</span><small>{label==='Backup & data'?'Backup':label}</small></button>)}</nav>
+  </div>;
+}
+
+function ProjectCard({p,projects,open}:{p:Project;projects:Project[];open:()=>void}){
+  const score=priority(p,projects,today()), costs=projectCost(p), todo=p.tasks.filter(t=>!t.done).length;
+  return <button onClick={open} className="project-card"><div className="card-top"><div className="category-icon">{ICONS[p.category]}</div><Chip tone={p.status==='Active'?'green':p.status==='Waiting'?'amber':p.status==='Completed'?'muted':'neutral'}>{p.status}</Chip></div>
+    <strong className="project-name">{p.name}</strong><span className="category-name">{p.category}</span>
+    <p className="next-action"><span>Next action</span>{p.nextAction||'Set the next action →'}</p>
+    <div className="project-metrics"><span><b>{money(costs.spentCents)}</b> spent</span><span><b>{money(p.budgetCents)}</b> budget</span><span><b>{p.estimatedHours||'—'}h</b> estimate</span></div>
+    <div className="card-bottom"><span className="priority-bubble">{p.override==='first'?'↑ Do first':p.override==='later'?'↓ Do later':`${score.score} pts priority`}</span><span>{todo} open step{todo===1?'':'s'} <span aria-hidden>→</span></span></div>
+  </button>;
+}
+function EmptyState({title,body,action,onClick}:{title:string;body:string;action:string;onClick:()=>void}){
+  return <div className="empty"><div className="empty-icon">⌂</div><h3>{title}</h3><p>{body}</p><button className="button primary" onClick={onClick}>{action}</button></div>;
+}
+
+type EntryField<T>={key:keyof T;label:string;kind?:'money'|'number'|'date'|'checkbox'|'url'|'text';wide?:boolean};
+function EntryRows<T extends {id:string}>({items,fields,onChange,onAdd,onRemove,empty,addLabel}:{items:T[];fields:EntryField<T>[];onChange:(items:T[])=>void;onAdd?:(item:T)=>void;onRemove?:(id:string)=>void;empty:()=>T;addLabel:string}){
+  function update(id:string,key:keyof T,value:unknown){onChange(items.map(x=>x.id===id?{...x,[key]:value}:x));}
+  return <div className="entry-list">{items.length===0&&<p className="subtle">Nothing added yet.</p>}
+    {items.map((item,index)=><div key={item.id} className="entry-row"><div className="entry-index">{index+1}</div><div className="entry-fields">{fields.map(f=><label key={String(f.key)} className={`field ${f.wide?'wide':''} ${f.kind==='checkbox'?'check-field':''}`}><span>{f.label}</span>{f.kind==='checkbox'?<input type="checkbox" checked={Boolean(item[f.key])} onChange={e=>update(item.id,f.key,e.target.checked)}/>:f.kind==='money'?<CurrencyInput value={Number(item[f.key])} onChange={v=>update(item.id,f.key,v)}/>:<input type={f.kind==='number'?'number':f.kind==='date'?'date':f.kind==='url'?'url':'text'} min={f.kind==='number'?'0':undefined} step={f.kind==='number'?'any':undefined} value={String(item[f.key]??'')} onChange={e=>update(item.id,f.key,f.kind==='number'?num(e.target.value):e.target.value)} />}</label>)}</div><button className="icon-delete" aria-label={`Remove item ${index+1}`} title="Remove row" onClick={()=>onRemove?onRemove(item.id):onChange(items.filter(x=>x.id!==item.id))}>×</button></div>)}
+    <button className="add-row" onClick={()=>{const item=empty();onAdd?onAdd(item):onChange([...items,item]);}}>+ {addLabel}</button>
+  </div>;
+}
+
+function ProjectEditor({project:p,allProjects,tab,setTab,patch,back,remove,alert}:{project:Project;allProjects:Project[];tab:EditorTab;setTab:(v:EditorTab)=>void;patch:(fn:(p:Project)=>Project)=>void;back:()=>void;remove:()=>void;alert:(s:string)=>void}){
+  const cost=projectCost(p), score=priority(p,allProjects,today());
+  const blockedNames=p.blockedBy.map(id=>allProjects.find(x=>x.id===id)?.name).filter(Boolean);
+  const set=<K extends keyof Project>(key:K,value:Project[K])=>patch(x=>({...x,[key]:value}));
+  const tabs:[EditorTab,string][]=[['plan','Plan'],['tasks','Steps'],['budget','Budget'],['materials','Materials'],['decisions','Compare'],['files','Files']];
+  async function attach(e:ChangeEvent<HTMLInputElement>){const files=e.target.files;if(!files)return;
+    try {for(const file of Array.from(files)){const data=await attachmentFromFile(file);const item:Attachment={id:uid(),name:file.name,mime:data.mime,dataUrl:data.dataUrl,date:today()};patch(x=>({...x,attachments:[...x.attachments,item]}));}}
+    catch(err){alert(err instanceof Error?err.message:String(err));}e.target.value='';}
+  return <div className="editor">
+    <button className="back-link" onClick={back}>← Back to projects</button>
+    <div className="editor-header"><div><div className="tagline">{p.category} <span>·</span> Last updated {shortDate(p.updatedAt.slice(0,10))}</div><h1>{p.name||'Untitled project'}</h1><div className="header-tags"><Chip tone={p.status==='Active'?'green':p.status==='Waiting'?'amber':'neutral'}>{p.status}</Chip><Chip>{p.override==='auto'?`Priority ${score.score}`:p.override==='first'?'Manual: Do first':'Manual: Do later'}</Chip>{blockedNames.length>0&&<Chip tone="amber">Blocked by {blockedNames.join(', ')}</Chip>}</div></div><button className="button danger-outline" onClick={remove}>Delete project</button></div>
+    <div className="editor-tabs" role="tablist" aria-label="Project sections">{tabs.map(([id,label])=><button role="tab" aria-selected={tab===id} className={tab===id?'active':''} key={id} onClick={()=>setTab(id)}>{label}</button>)}</div>
+    {tab==='plan'&&<div className="two-column"><section className="panel"><div className="panel-heading"><h2>Project details</h2><p>Capture the essentials, not paperwork.</p></div><div className="form-grid">
+      <TextField label="Project name"><input value={p.name} onChange={e=>set('name',e.target.value)} maxLength={120}/></TextField>
+      <TextField label="Category"><Select value={p.category} onChange={v=>set('category',v as Project['category'])} options={CATEGORIES}/></TextField>
+      <TextField label="Status"><Select value={p.status} onChange={v=>set('status',v as Project['status'])} options={STATUSES}/></TextField>
+      <TextField label="Target date"><input type="date" value={p.targetDate} onChange={e=>set('targetDate',e.target.value)}/></TextField>
+      <TextField label="Estimated time (hours)"><input type="number" min="0" step="0.5" value={p.estimatedHours} onChange={e=>set('estimatedHours',num(e.target.value))}/></TextField>
+      <TextField label="Ranking preference"><Select value={p.override} onChange={v=>set('override',v as Project['override'])} options={['auto','first','later']}/></TextField>
+      <TextField label="Next action"><input placeholder="What is the very next thing to do?" value={p.nextAction} onChange={e=>set('nextAction',e.target.value)}/></TextField>
+      <TextField label="Description / notes"><textarea rows={4} value={p.description} placeholder="Scope, decisions, links, constraints…" onChange={e=>set('description',e.target.value)}/></TextField>
+    </div></section><div className="stack"><section className="panel"><div className="panel-heading"><h2>Priority, explained</h2><p>Factors from 0 (low) to 4 (high), with no AI guesswork.</p></div>
+      {([['urgency','Safety / urgency'],['financialImpact','Financial impact'],['importance','Personal importance']] as [keyof Pick<Project,'urgency'|'financialImpact'|'importance'>,string][]).map(([key,label])=><label className="range-field" key={key}><div><span>{label}</span><strong>{p[key]}/4</strong></div><input type="range" min="0" max="4" value={p[key]} onChange={e=>set(key,num(e.target.value))}/></label>)}
+      <div className="score-line"><strong>{score.score}</strong><span>automatic points</span></div><div className="reason-list">{score.reasons.map((r,i)=><span key={i}>{r}</span>)}</div><p className="hint">Manual “Do first” and “Do later” override ranking groups, not the calculation. Completed projects remain visible but not in the work-next suggestions.</p></section>
+      <section className="panel"><h2>Dependencies</h2><p className="subtle">Mark projects that need finishing before this one.</p><div className="dependency-list">{allProjects.filter(x=>x.id!==p.id&&x.status!=='Completed').map(other=><label key={other.id}><input type="checkbox" checked={p.blockedBy.includes(other.id)} onChange={e=>set('blockedBy',e.target.checked?[...p.blockedBy,other.id]:p.blockedBy.filter(x=>x!==other.id))}/><span>{other.name}</span></label>)}{allProjects.length<=1&&<p className="subtle">Other projects will appear here.</p>}</div></section></div></div>}
+    {tab==='tasks'&&<section className="panel"><div className="panel-heading"><h2>Steps and checklists</h2><p>Optional phases keep the work organized. Mark steps done as you finish.</p></div><div className="task-summary">{p.tasks.filter(t=>t.done).length}/{p.tasks.length} completed <div className="progress"><span style={{width:`${p.tasks.length?100*p.tasks.filter(x=>x.done).length/p.tasks.length:0}%`}}/></div></div>
+      <div className="task-list">{p.tasks.map(t=><div key={t.id} className="task-item"><input type="checkbox" aria-label={`Complete ${t.title}`} checked={t.done} onChange={e=>set('tasks',p.tasks.map(x=>x.id===t.id?{...x,done:e.target.checked}:x))}/><input className={t.done?'done':''} aria-label="Step name" value={t.title} onChange={e=>set('tasks',p.tasks.map(x=>x.id===t.id?{...x,title:e.target.value}:x))} placeholder="What needs doing?"/><input aria-label="Phase" placeholder="Phase (optional)" value={t.phase} onChange={e=>set('tasks',p.tasks.map(x=>x.id===t.id?{...x,phase:e.target.value}:x))}/><input aria-label="Step due date" type="date" value={t.dueDate} onChange={e=>set('tasks',p.tasks.map(x=>x.id===t.id?{...x,dueDate:e.target.value}:x))}/><button aria-label="Delete step" className="icon-delete" onClick={()=>set('tasks',p.tasks.filter(x=>x.id!==t.id))}>×</button></div>)}</div>
+      <button className="add-row" onClick={()=>set('tasks',[...p.tasks,{id:uid(),title:'',done:false,phase:'',dueDate:''}])}>+ Add a step</button><div className="next-action-panel"><strong>Next action — shown on your dashboard</strong><input value={p.nextAction} placeholder="e.g. Call for a second quote" onChange={e=>set('nextAction',e.target.value)}/></div>
+    </section>}
+    {tab==='budget'&&<div className="stack"><div className="budget-grid"><Stat label="Actually spent" value={money(cost.spentCents)}/><Stat label="Committed, not paid" value={money(cost.committedCents)}/><Stat label="Future estimates" value={money(cost.estimatedCents)}/><Stat label="Total forecast" value={money(cost.forecastCents)} sub={`Including ${money(cost.contingencyCents)} contingency`}/></div>
+      <section className="panel"><div className="panel-heading"><h2>Budget & forecast</h2><p>Quotes are comparisons, not automatic expenses. Purchases count once as actual expenses.</p></div><div className="form-grid thirds"><TextField label="Budget"><CurrencyInput value={p.budgetCents} onChange={v=>set('budgetCents',v)}/></TextField><TextField label="Unpaid labor estimate"><CurrencyInput value={p.laborEstimateCents} onChange={v=>set('laborEstimateCents',v)}/></TextField><TextField label="Contingency %"><input type="number" min="0" max="100" value={p.contingencyPercent} onChange={e=>set('contingencyPercent',clamp(Number(e.target.value),0,100))}/></TextField></div>
+      <div className="budget-breakdown">{[['Budget',p.budgetCents],['Actual spent',cost.spentCents],['Future committed',cost.committedCents],['Future estimates',cost.estimatedCents],['Contingency',cost.contingencyCents],['Forecast',cost.forecastCents],['Headroom vs budget',cost.forecastHeadroomCents]].map(([label,value])=><div key={String(label)} className={label==='Forecast'?'strong':''}><span>{label}</span><b className={Number(value)<0?'negative':''}>{money(Number(value))}</b></div>)}</div>
+      <p className="hint">Forecast = spent + commitments + unpurchased materials + labor estimate + planned future expenses + contingency on unpaid costs. Estimates, quotes, and material purchase flags are never treated as cash spent.</p></section>
+      <section className="panel"><h2>Actual purchases & payments</h2><p className="subtle">Record each payment once, including purchased materials. Nothing here is imported from banking.</p><EntryRows<Expense> items={p.expenses} onChange={v=>set('expenses',v)} addLabel="Record expense" empty={()=>({id:uid(),title:'',amountCents:0,date:today(),notes:''})} fields={[{key:'title',label:'What was paid for?',wide:true},{key:'amountCents',label:'Amount',kind:'money'},{key:'date',label:'Date',kind:'date'},{key:'notes',label:'Notes',wide:true}]}/></section>
+      <section className="panel"><h2>Future expenses & commitments</h2><p className="subtle">Enter each cost here only if it is not already counted in materials or labor. Mark committed when you have agreed to pay but have not paid yet. Add a date for monthly planning.</p><EntryRows<FutureCost> items={p.futureCosts} onChange={v=>set('futureCosts',v)} addLabel="Add future cost" empty={()=>({id:uid(),title:'',amountCents:0,committed:false,dueDate:''})} fields={[{key:'title',label:'Description',wide:true},{key:'amountCents',label:'Estimated amount',kind:'money'},{key:'committed',label:'Committed',kind:'checkbox'},{key:'dueDate',label:'Expected date',kind:'date'}]}/></section>
+    </div>}
+    {tab==='materials'&&<section className="panel"><h2>Shopping & materials</h2><p className="subtle">Set your own prices and preferred store. Mark as purchased to remove it from the unpaid estimate; record the actual transaction in Budget → Actual purchases.</p><div className="materials-summary"><span><b>{p.materials.filter(x=>x.purchased).length}/{p.materials.length}</b> bought</span><span><b>{money(cost.materialsCents)}</b> still estimated</span></div>
+      <EntryRows<Material> items={p.materials} onChange={v=>set('materials',v)} addLabel="Add material" empty={()=>({id:uid(),title:'',quantity:1,unitCents:0,store:'',url:'',purchased:false,notes:''})} fields={[{key:'title',label:'Material / item',wide:true},{key:'quantity',label:'Quantity',kind:'number'},{key:'unitCents',label:'Unit price',kind:'money'},{key:'store',label:'Preferred store'},{key:'purchased',label:'Purchased',kind:'checkbox'},{key:'url',label:'Product URL',kind:'url',wide:true},{key:'notes',label:'Notes',wide:true}]}/>
+      {p.materials.some(m=>m.purchased)&&<p className="hint">Purchased items are excluded from remaining materials. Ensure their actual cost has been entered under Budget; checking Purchased does not record a payment.</p>}
+      <div className="product-links">{p.materials.filter(x=>safeLink(x.url)).map(x=><a key={x.id} target="_blank" rel="noopener noreferrer" href={safeLink(x.url)}>{x.title||'Product'} ↗</a>)}</div>
+    </section>}
+    {tab==='decisions'&&<div className="stack"><section className="panel"><h2>Compare written quotes</h2><p className="subtle">Quotes are reference options only and never add to your budget totals until you enter a payment or planned expense.</p><EntryRows<Quote> items={p.quotes} onChange={v=>set('quotes',v)} addLabel="Add quote" empty={()=>({id:uid(),vendor:'',description:'',amountCents:0,received:today(),url:'',notes:''})} fields={[{key:'vendor',label:'Vendor'},{key:'description',label:'Scope',wide:true},{key:'amountCents',label:'Quoted amount',kind:'money'},{key:'received',label:'Received',kind:'date'},{key:'url',label:'Quote URL',kind:'url',wide:true},{key:'notes',label:'Assumptions / exclusions',wide:true}]}/>
+        {p.quotes.filter(x=>safeLink(x.url)).map(x=><a className="external-link" target="_blank" rel="noopener noreferrer" key={x.id} href={safeLink(x.url)}>{x.vendor||'Quote'} link ↗</a>)}
+      </section><section className="panel"><div className="panel-heading"><h2>Repair vs. replace calculator</h2><p>Use any named options: repair, postpone, second opinion, replace or finance. Every amount is entered by you.</p></div><div className="calc-disclosure"><strong>How the calculator works</strong><p>Total = cash today + upfront finance fees + estimated later costs + all loan payments. A financed principal is not also counted as cash today. Fixed APR is divided by 12; payments are amortized over the entered months. Calculations round monthly payment to cents; actual lenders may adjust the final payment. Taxes, insurance, maintenance, resale value, timing, uncertainty and safety consequences are excluded unless included in your manual costs.</p></div>
+        {p.options.length>0&&<div className="decision-results">{p.options.map(x=>{const value=decisionCost(x);return <div className="decision-result" key={x.id}><span>{x.label||'Untitled scenario'}</span><strong>{money(value.totalCents)}</strong><small>{x.financedCents>0&&x.months===0?'Loan months needed; interest not estimated':x.financedCents>0?`${money(value.paymentCents)}/mo × ${x.months} · ${money(value.interestCents)} interest`:'No financing entered'}</small></div>})}</div>}
+        <EntryRows<DecisionOption> items={p.options} onChange={v=>set('options',v)} addLabel="Add comparison option" empty={()=>({id:uid(),label:'',cashTodayCents:0,financedCents:0,aprPercent:0,months:0,financeFeesCents:0,futureCostsCents:0,notes:''})} fields={[{key:'label',label:'Option name',wide:true},{key:'cashTodayCents',label:'Cash paid today',kind:'money'},{key:'financedCents',label:'Loan principal',kind:'money'},{key:'aprPercent',label:'APR %',kind:'number'},{key:'months',label:'Loan months',kind:'number'},{key:'financeFeesCents',label:'Upfront financing fees',kind:'money'},{key:'futureCostsCents',label:'Other future costs',kind:'money'},{key:'notes',label:'Assumptions / safety questions',wide:true}]}/>
+        <p className="hint">A lower calculated total does not establish that an option is safe, appropriate, or financially optimal. Ask a qualified mechanic or contractor about whether postponement is safe. For financing, confirm the actual lender’s APR, fees, and schedule.</p>
+      </section></div>}
+    {tab==='files'&&<section className="panel"><h2>Photos, receipts & documents</h2><p className="subtle">Photos are resized to fit local storage. PDF files are limited to 2 MB; JPG, PNG and WebP are supported. Files stay on this device and are included in exported JSON backups.</p><label className="button secondary file-label">+ Attach files<input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*" onChange={attach}/></label>
+      <div className="attachment-grid">{p.attachments.map(a=><div className="attachment" key={a.id}>{a.mime.startsWith('image/')?<img src={a.dataUrl} alt={a.name}/>:<div className="pdf-icon">PDF</div>}<strong title={a.name}>{a.name}</strong><small>{shortDate(a.date)}</small><div><a download={a.name} href={a.dataUrl}>Save copy</a><SmallBtn danger onClick={()=>set('attachments',p.attachments.filter(x=>x.id!==a.id))}>Remove</SmallBtn></div></div>)}</div>
+      {!p.attachments.length&&<p className="subtle">No attachments yet. Add a photo, receipt, quote PDF, or equipment label.</p>}</section>}
+  </div>;
+}
+
+function MaintenanceView({items,projects,change}:{items:MaintenanceItem[];projects:Project[];change:(fn:(items:MaintenanceItem[])=>MaintenanceItem[])=>void}){
+  const [selected,setSelected]=useState<string|null>(null);
+  const item=items.find(x=>x.id===selected);
+  function patch(id:string,fn:(m:MaintenanceItem)=>MaintenanceItem){change(rows=>rows.map(x=>x.id===id?fn(x):x));}
+  function add(){const m=newMaintenance();m.title='New maintenance item';change(rows=>[m,...rows]);setSelected(m.id);}
+  const sorted=[...items].sort((a,b)=>Number(dueMaintenance(b,today()).due)-Number(dueMaintenance(a,today()).due));
+  if(item){const due=dueMaintenance(item,today());return <div><button className="back-link" onClick={()=>setSelected(null)}>← All maintenance</button><div className="page-heading"><div><h1>{item.title}</h1><p>Service schedule, history and warranty</p></div><button className="button danger-outline" onClick={()=>{if(confirm(`Delete maintenance record “${item.title}”?`)){change(rows=>rows.filter(x=>x.id!==item.id));setSelected(null);}}}>Delete</button></div>
+    <div className="two-column"><section className="panel"><h2>Maintenance schedule</h2><div className="form-grid"><TextField label="Item / service"><input value={item.title} onChange={e=>patch(item.id,x=>({...x,title:e.target.value}))}/></TextField><TextField label="Equipment / vehicle"><input value={item.asset} onChange={e=>patch(item.id,x=>({...x,asset:e.target.value}))}/></TextField><TextField label="Category"><Select value={item.category} onChange={v=>patch(item.id,x=>({...x,category:v as MaintenanceItem['category']}))} options={CATEGORIES}/></TextField><TextField label="Linked project (optional)"><select value={item.projectId} onChange={e=>patch(item.id,x=>({...x,projectId:e.target.value}))}><option value="">None</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></TextField><TextField label="Service every N days"><input type="number" min="0" value={item.intervalDays} onChange={e=>patch(item.id,x=>({...x,intervalDays:num(e.target.value)}))}/></TextField><TextField label="Or every N hours / miles"><input type="number" min="0" value={item.intervalHours} onChange={e=>patch(item.id,x=>({...x,intervalHours:num(e.target.value)}))}/></TextField><TextField label="Current usage (hours or miles)"><input type="number" min="0" placeholder="Optional" value={item.currentHours??''} onChange={e=>patch(item.id,x=>({...x,currentHours:e.target.value===''?null:num(e.target.value)}))}/></TextField><TextField label="Warranty expires"><input type="date" value={item.warrantyUntil} onChange={e=>patch(item.id,x=>({...x,warrantyUntil:e.target.value}))}/></TextField><TextField label="Instructions / notes"><textarea value={item.notes} rows={4} onChange={e=>patch(item.id,x=>({...x,notes:e.target.value}))}/></TextField></div></section><div className="stack"><section className="panel"><h2>Next service</h2><div className="due-block"><Chip tone={due.due?'red':due.soon?'amber':'green'}>{due.due?'Due now':due.soon?'Coming up':'Scheduled / unconfigured'}</Chip><h3>{due.dueDate?shortDate(due.dueDate):'No date scheduled'}</h3><p>{due.dueHours===null?'No usage interval':'Due at usage: '+due.dueHours}</p><p className="subtle">Add a completed service entry to calculate next due. Usage units must be consistent (miles or hours).</p></div></section><section className="panel"><h2>Service history</h2><EntryRows<ServiceEntry> items={item.entries} onChange={rows=>patch(item.id,x=>({...x,entries:rows}))} addLabel="Log completed service" empty={()=>({id:uid(),date:today(),hours:item.currentHours,costCents:0,notes:''})} fields={[{key:'date',label:'Service date',kind:'date'},{key:'hours',label:'Usage at service',kind:'number'},{key:'costCents',label:'Paid',kind:'money'},{key:'notes',label:'Work done',wide:true}]}/></section></div></div>
+  </div>}
+  return <div><div className="page-heading"><div><h1>Stay ahead of maintenance.</h1><p>Service history and upcoming reminders, all local to this device.</p></div><button className="button primary" onClick={add}>+ Add maintenance</button></div>
+    {sorted.length?<div className="maintenance-list">{sorted.map(m=>{const due=dueMaintenance(m,today());return <button className="maintenance-card" key={m.id} onClick={()=>setSelected(m.id)}><span className="category-icon">{ICONS[m.category]}</span><span className="maintenance-title"><strong>{m.title}</strong><small>{m.asset||m.category}</small></span><span className="maintenance-when">{due.dueDate?shortDate(due.dueDate):'No due date'}<Chip tone={due.due?'red':due.soon?'amber':'neutral'}>{due.due?'Due':due.soon?'Soon':'Tracked'}</Chip></span><span>→</span></button>})}</div>:<EmptyState title="No recurring maintenance yet" body="Track projector filters, vehicle servicing, seasonal installation, HVAC, batteries and other recurring work." action="Add maintenance" onClick={add}/>}
+  </div>;
+}
