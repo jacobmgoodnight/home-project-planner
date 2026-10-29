@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ChangeEvent } from 'react';
-import type { EquipmentItem,MaintenanceItem } from './types';
+import type { Attachment,EquipmentItem,MaintenanceItem } from './types';
 import { newEquipment,uid,today } from './types';
 import { attachmentFromFile } from './storage';
 
@@ -39,7 +39,7 @@ export function EquipmentInventory({items,maintenance,change,unlink,onBack,initi
   if(files.length+item.photos.length>5){setNotice('Up to 5 label photos per equipment item.');return;}
   setUploading(true);setNotice('');
   try {
-   const result=[];
+   const result:Attachment[]=[];
    for(const file of files){
     if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Use JPG, PNG or WebP label photos.');
     const img=await attachmentFromFile(file);
