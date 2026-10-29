@@ -1,6 +1,6 @@
--- Home Project Planner — OPTIONAL, DEDICATED Supabase backend.
--- Run only against a new project specifically chosen for this app.
--- NEVER apply in an unrelated project's schema.
+-- Home Project Planner — approved isolated tables in existing shared backend.
+-- Namespace prefix: hpp_; does not modify gw_, hdb_ or other app tables.
+-- Deploy only to the explicitly authorized Supabase project.
 -- Client contains only the project's publishable key. Never deploy service_role.
 create table if not exists public.hpp_households (
  id uuid primary key default gen_random_uuid(),
@@ -44,13 +44,11 @@ create policy "households read own memberships" on public.hpp_households for sel
 create policy "snapshots read own memberships" on public.hpp_snapshots for select to authenticated using (
  exists(select 1 from public.hpp_members m where m.household_id=public.hpp_snapshots.household_id and m.user_id=(select auth.uid()))
 );
-create policy "snapshots update own memberships" on public.hpp_snapshots for update to authenticated
- using (exists(select 1 from public.hpp_members m where m.household_id=public.hpp_snapshots.household_id and m.user_id=(select auth.uid())))
- with check (exists(select 1 from public.hpp_members m where m.household_id=public.hpp_snapshots.household_id and m.user_id=(select auth.uid())));
+-- No table UPDATE policy: snapshot writes must use checked CAS RPC only.
 -- Invites are not exposed to client SELECT, INSERT, UPDATE or DELETE at all.
 revoke all on public.hpp_households,public.hpp_members,public.hpp_snapshots,public.hpp_invites from anon,authenticated;
 grant select on public.hpp_households,public.hpp_members to authenticated;
-grant select,update on public.hpp_snapshots to authenticated;
+grant select on public.hpp_snapshots to authenticated;
 
 create or replace function public.hpp_create_household(p_name text)
 returns uuid language plpgsql security definer set search_path = ''
@@ -98,7 +96,7 @@ $$;
 create or replace function public.hpp_list_members(p_household uuid)
 returns table(member_user_id uuid, member_email text, member_role text)
 language plpgsql security definer set search_path = ''
-as $
+as $$
 begin
  if (select auth.uid()) is null then raise exception 'Sign in first'; end if;
  if not exists(select 1 from public.hpp_members m where m.household_id=p_household and m.user_id=(select auth.uid()) and m.role='owner')
@@ -106,10 +104,10 @@ begin
  return query select m.user_id,u.email::text,m.role from public.hpp_members m
  join auth.users u on u.id=m.user_id where m.household_id=p_household order by m.joined_at;
 end;
-$;
+$$;
 create or replace function public.hpp_remove_member(p_household uuid,p_user uuid)
 returns void language plpgsql security definer set search_path = ''
-as $
+as $$
 begin
  if (select auth.uid()) is null then raise exception 'Sign in first'; end if;
  if not exists(select 1 from public.hpp_members m where m.household_id=p_household and m.user_id=(select auth.uid()) and m.role='owner')
@@ -117,20 +115,32 @@ begin
  if p_user=(select auth.uid()) then raise exception 'The owner cannot remove their own account'; end if;
  delete from public.hpp_members where household_id=p_household and user_id=p_user and role='member';
 end;
-$;
+$$;
 revoke all on function public.hpp_list_members(uuid) from public,anon;
 revoke all on function public.hpp_remove_member(uuid,uuid) from public,anon;
 grant execute on function public.hpp_list_members(uuid) to authenticated;
 grant execute on function public.hpp_remove_member(uuid,uuid) to authenticated;
 
--- Optimistic CAS, operating under the caller's own RLS (no privilege escalation).
+-- Optimistic CAS: only authorized members can write; direct table UPDATE is revoked.
+-- SECURITY DEFINER is explicitly membership-guarded and revision-checked.
 create or replace function public.hpp_cas_snapshot(p_household uuid,p_revision bigint,p_document jsonb)
-returns bigint language plpgsql security invoker set search_path = ''
+returns bigint language plpgsql security definer set search_path = ''
 as $$
 declare v_revision bigint;
 begin
  if (select auth.uid()) is null then raise exception 'Sign in first';end if;
- if p_document is null or octet_length(p_document::text)>20000000 then raise exception 'Invalid or oversized snapshot';end if;
+ if p_revision is null or p_revision < 0 then raise exception 'Invalid revision';end if;
+ if p_document is null or jsonb_typeof(p_document)<>'object'
+    or p_document->>'version'<>'3'
+    or jsonb_typeof(p_document->'projects')<>'array'
+    or jsonb_typeof(p_document->'maintenance')<>'array'
+    or jsonb_typeof(p_document->'equipment')<>'array'
+    or octet_length(p_document::text)>20000000
+ then raise exception 'Invalid or oversized snapshot';end if;
+ if not exists (
+    select 1 from public.hpp_members m
+    where m.household_id=p_household and m.user_id=(select auth.uid())
+ ) then raise exception 'Not a household member'; end if;
  update public.hpp_snapshots
  set document=p_document,revision=revision+1,updated_at=now(),updated_by=(select auth.uid())
  where household_id=p_household and revision=p_revision
