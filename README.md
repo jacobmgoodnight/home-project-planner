@@ -182,3 +182,5 @@ Open **Maintenance → Home reference** for one searchable view of equipment pho
 The household owner can list members and revoke future cloud access. This does not erase content already downloaded or exported by another household member.
 
 On devices with notification support, enabling notifications also permits one brief reminder per day when opening the app, if upcoming maintenance/warranty items exist. This is not push while closed.
+
+On mobile, Equipment and service-completion screens offer separate **Take photo** and **Choose existing photo/PDF** controls, rather than forcing the camera.

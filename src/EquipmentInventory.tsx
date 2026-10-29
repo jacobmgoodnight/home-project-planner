@@ -88,7 +88,9 @@ export function EquipmentInventory({items,maintenance,change,unlink,onBack,initi
     <label className="field"><span>Notes</span><textarea rows={4} value={item.notes} onChange={e=>patch(item.id,{notes:e.target.value})}/></label>
    </div></section><div className="stack">
     <section className="panel"><h2>Label photos</h2><p className="subtle">Photograph the model/serial label once, then read it when ordering parts. Stored only in this browser.</p>
-     <label className="button secondary file-label"> {uploading?'Saving photos…':'+ Add label photo'} <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={uploading||item.photos.length>=5} onChange={photosChanged}/></label>
+     <div className="action-line">
+     <label className="button secondary file-label">{uploading?'Saving…':'📷 Take label photo'}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={uploading||item.photos.length>=5} onChange={photosChanged}/></label>
+     <label className="button secondary file-label">Choose existing photos<input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={uploading||item.photos.length>=5} onChange={photosChanged}/></label></div>
      <div className="equipment-photos">{item.photos.map(photo=><div className="equipment-photo" key={photo.id}><a href={photo.dataUrl} download={photo.name} aria-label={'Save '+photo.name}><img src={photo.dataUrl} alt={'Equipment label: '+photo.name}/></a><div><small>{photo.name}</small><button type="button" className="small-btn" onClick={()=>{if(window.confirm('Remove this photo?'))patch(item.id,{photos:item.photos.filter(p=>p.id!==photo.id)});}}>Remove</button></div></div>)}</div>
      {!item.photos.length&&<p className="subtle">No label photos yet. Use your phone camera or photo library.</p>}
     </section>

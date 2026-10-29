@@ -66,7 +66,10 @@ export function MaintenanceCompletion({item,onSave,onCancel}:{item:MaintenanceIt
     <label className="field"><span>What was done?</span><textarea rows={3} placeholder="Quick details, observations, or contractor notes" value={notes} onChange={e=>setNotes(e.target.value)}/></label>
    </div>
    <div className="receipt-upload"><strong>Receipt or service photo (optional)</strong><p className="subtle">A compressed photo or small PDF stays on this device and in JSON backups.</p>
-    <label className="button secondary file-label">{busy?'Reading file…':receipt?'Replace receipt':'+ Attach receipt'}<input type="file" accept=".pdf,image/jpeg,image/png,image/webp" disabled={busy} onChange={fileChanged}/></label>
+    <div className="action-line">
+    <label className="button secondary file-label">{busy?'Reading…':'📷 Take receipt photo'}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={busy} onChange={fileChanged}/></label>
+    <label className="button secondary file-label">{receipt?'Replace file':'Choose receipt / PDF'}<input type="file" accept=".pdf,image/jpeg,image/png,image/webp" disabled={busy} onChange={fileChanged}/></label>
+    </div>
     {receipt&&<div className="receipt-line"><span>{receipt.name}</span><button className="small-btn" onClick={()=>setReceipt(undefined)}>Remove</button></div>}
    </div>
   </section><div className="stack">
