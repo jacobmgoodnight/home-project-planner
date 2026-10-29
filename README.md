@@ -43,7 +43,7 @@ Open the Vite local URL (normally `http://localhost:5173`). The project ships wi
 
 The full MVP has been committed to [this repository](https://github.com/jacobmgoodnight/home-project-planner). No manual ZIP upload, `git init`, or `git push` is needed for this release.
 
-**GitHub Pages:** This repository is currently **private**. Pages support for private repositories depends on the owner's GitHub plan. Keep the repository private if you do not want to publish the code. If Pages is available:
+**GitHub Pages:** This repository is public and the app is deployed through GitHub Actions. The public repository contains source code and fictional examples only; personal data stays in each browser's local storage.
 
 1. Open **Settings → Pages → Build and deployment** and select **GitHub Actions**.
 2. The included `.github/workflows/verify-deploy.yml` workflow installs dependencies, runs tests, checks TypeScript, builds the site, and deploys the `dist` directory from `main`.
