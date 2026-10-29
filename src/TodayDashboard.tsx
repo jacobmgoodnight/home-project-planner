@@ -15,17 +15,17 @@ export function TodayDashboard({projects,maintenance,onQuickAdd,onSetup,onOpenPr
   <div className="today-stats"><span><strong>{dashboard.due.filter(x=>x.status.due).length}</strong> due now</span><span><strong>{dashboard.nextSteps.length}</strong> steps due this week</span><span><strong>{dashboard.quickWins.length}</strong> small projects</span></div>
   <div className="today-grid">
    <section className="panel today-panel"><h2>Maintenance to address</h2><p className="subtle">Due or approaching, based on the dates you saved.</p>
-    {dashboard.due.length?<div className="today-lines">{dashboard.due.map(({item,status})=><button key={item.id} onClick={()=>onOpenMaintenance(item.id)}>
+    {dashboard.due.length?<div className="today-lines">{dashboard.due.slice(0,6).map(({item,status})=><button key={item.id} onClick={()=>onOpenMaintenance(item.id)}>
       <strong>{item.title}</strong><small>{status.due?'Due now or overdue':'Due soon'}{status.dueDate?' · '+status.dueDate:''}</small><span>Open →</span>
     </button>)}</div>:<p className="subtle">Nothing scheduled is due within 30 days. Tasks without due dates are not marked overdue.</p>}
    </section>
    <section className="panel today-panel"><h2>Next project steps</h2><p className="subtle">Unfinished steps due within the next 7 days, including overdue ones.</p>
-    {dashboard.nextSteps.length?<div className="today-lines">{dashboard.nextSteps.map(({project,task})=><div className="today-step" key={project.id+task.id}><label><input type="checkbox" checked={false} onChange={()=>onStepDone(project.id,task.id)}/><span><strong>{task.title}</strong><small>{project.name} · {task.dueDate}{(dayDiff(task.dueDate,current)??0)<0?' · overdue':''}</small></span></label><button className="small-btn" onClick={()=>onOpenProject(project.id)}>Open →</button></div>)}</div>:<p className="subtle">No upcoming dated steps. Use Quick add to capture the next thing you want to do.</p>}
+    {dashboard.nextSteps.length?<div className="today-lines">{dashboard.nextSteps.slice(0,6).map(({project,task})=><div className="today-step" key={project.id+task.id}><label><input type="checkbox" checked={false} onChange={()=>onStepDone(project.id,task.id)}/><span><strong>{task.title}</strong><small>{project.name} · {task.dueDate}{(dayDiff(task.dueDate,current)??0)<0?' · overdue':''}</small></span></label><button className="small-btn" onClick={()=>onOpenProject(project.id)}>Open →</button></div>)}</div>:<p className="subtle">No upcoming dated steps. Use Quick add to capture the next thing you want to do.</p>}
    </section>
    <section className="panel today-panel"><h2>Quick wins</h2><p className="subtle">Short, unblocked projects with estimated effort of 2 hours or less.</p>
-    {dashboard.quickWins.length?<div className="today-lines">{dashboard.quickWins.map(p=><button key={p.id} onClick={()=>onOpenProject(p.id)}><strong>{p.name}</strong><small>{p.estimatedHours} hour{p.estimatedHours===1?'':'s'} estimated</small><span>Open →</span></button>)}</div>:<p className="subtle">No small projects identified yet. Set estimated hours in a project to see quick wins here.</p>}
+    {dashboard.quickWins.length?<div className="today-lines">{dashboard.quickWins.slice(0,4).map(p=><button key={p.id} onClick={()=>onOpenProject(p.id)}><strong>{p.name}</strong><small>{p.estimatedHours} hour{p.estimatedHours===1?'':'s'} estimated</small><span>Open →</span></button>)}</div>:<p className="subtle">No small projects identified yet. Set estimated hours in a project to see quick wins here.</p>}
    </section>
   </div>
-  {!!dashboard.upcomingProjects.length&&<details className="today-more"><summary>{dashboard.upcomingProjects.length} project deadlines in the next week</summary><div>{dashboard.upcomingProjects.map(p=><button key={p.id} onClick={()=>onOpenProject(p.id)}>{p.name} · {p.targetDate} →</button>)}</div></details>}
+  {!!dashboard.upcomingProjects.length&&<details className="today-more"><summary>{dashboard.upcomingProjects.length} project deadlines in the next week</summary><div>{dashboard.upcomingProjects.slice(0,5).map(p=><button key={p.id} onClick={()=>onOpenProject(p.id)}>{p.name} · {p.targetDate} →</button>)}</div></details>}
  </div>;
 }

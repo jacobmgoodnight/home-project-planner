@@ -6,15 +6,15 @@ export function todayOverview(projects,maintenance,asOf){
  const due=maintenance.map(m=>({item:m,status:dueMaintenance(m,asOf)}))
    .filter(x=>x.status.due||x.status.soon)
    .sort((a,b)=>(a.status.due===b.status.due?0:a.status.due?-1:1)||(a.status.dueDate||'9999').localeCompare(b.status.dueDate||'9999'))
-   .slice(0,6);
+   ;
  const nextSteps=active.flatMap(p=>p.tasks.filter(t=>!t.done).map(t=>({project:p,task:t})))
    .filter(x=>x.task.dueDate&&dayDiff(x.task.dueDate,asOf)!==null&&dayDiff(x.task.dueDate,asOf)<=7)
-   .sort((a,b)=>a.task.dueDate.localeCompare(b.task.dueDate)).slice(0,6);
+   .sort((a,b)=>a.task.dueDate.localeCompare(b.task.dueDate));
  const quickWins=active.filter(p=>p.status!=='Waiting'&&p.estimatedHours>0&&p.estimatedHours<=2
    &&p.blockedBy.every(id=>!projects.some(o=>o.id===id&&o.status!=='Completed')))
-   .slice(0,4);
+;
  const upcomingProjects=active.filter(p=>p.targetDate&&dayDiff(p.targetDate,asOf)!==null&&dayDiff(p.targetDate,asOf)<=7)
-   .sort((a,b)=>a.targetDate.localeCompare(b.targetDate)).slice(0,5);
+   .sort((a,b)=>a.targetDate.localeCompare(b.targetDate));
  return {due,nextSteps,quickWins,upcomingProjects};
 }
 function validDate(date){
@@ -39,7 +39,7 @@ function stableId(raw){return String(raw||'unknown').replace(/[^A-Za-z0-9_-]/g,'
 export function calendarIcs(items,asOf){
  const entries=items.flatMap(m=>{
   const due=dueMaintenance(m,asOf).dueDate;
-  return validDate(due)?[{id:m.id,title:m.title,date:due}]:[];
+  return validDate(due)&&due>=asOf?[{id:m.id,title:m.title,date:due}]:[];
  }).sort((a,b)=>a.date.localeCompare(b.date));
  const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Home Project Planner//Maintenance Calendar//EN','CALSCALE:GREGORIAN','METHOD:PUBLISH','X-WR-CALNAME:Home maintenance'];
  for(const entry of entries){

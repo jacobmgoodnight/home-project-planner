@@ -15,3 +15,8 @@ test('ICS is a valid all-day calendar record with 1-day display reminder and esc
  assert.match(result.text,/DTSTART;VALUE=DATE:20261102/);assert.match(result.text,/DTEND;VALUE=DATE:20261103/);
  assert.match(result.text,/TRIGGER:-P1D/);assert.match(result.text,/Clean HVAC\\, filters\\; check/);
 });
+
+test('calendar skips old overdue dates rather than installing stale reminders',()=>{
+ const result=calendarIcs([item({firstDueDate:'2026-01-01'}),item({id:'upcoming',firstDueDate:'2026-11-04'})],'2026-10-29');
+ assert.equal(result.count,1);assert.match(result.text,/20261104/);assert.doesNotMatch(result.text,/DTSTART;VALUE=DATE:20260101/);
+});

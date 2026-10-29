@@ -12,7 +12,7 @@ export function CalendarExport({items}:{items:MaintenanceItem[]}){
   setTimeout(()=>URL.revokeObjectURL(url),60000);
  }
  return <div className="calendar-export"><button className="button secondary" onClick={download} disabled={!data.count}>⇩ Calendar (.ics)</button>
-  <small>{data.count?data.count+' dated tasks · reminder 1 day before':'Set a due date to enable calendar export'}</small>
-  <p className="subtle">Import into Apple, Google, or Outlook Calendar. One event per currently scheduled task; re-export after completing maintenance to update dates. Imported events are not automatically removed.</p>
+  <small>{data.count?data.count+' upcoming dated tasks · reminder 1 day before':'Set a due date to enable calendar export'}</small>
+  <p className="subtle">Import into Apple, Google, or Outlook Calendar. Excludes overdue and undated work. Re-export after completing maintenance to update dates; imported entries are not automatically removed.</p>
  </div>;
 }
