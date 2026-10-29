@@ -48,7 +48,7 @@ export function BackupTransfer({data,lastEdit,lastExport,onPrepared,onReplace,on
   onMerge(incoming);setIncoming(null);setFileName('');setNotice('New records merged. Existing IDs were preserved. Export a new backup before moving to another device.');
  }
  return <section className="panel backup-transfer">
-  <div className="parts-heading"><div><h2>Backup & device transfer</h2><p>Move data between Windows and iPhone without an account. You control each transfer.</p></div></div>
+  <div className="parts-heading"><div><h2>Backup & device transfer</h2><p>Save a private copy or manually move it between devices. Automatic household sync is separately available below.</p></div></div>
   <div className="backup-state">
    <span><strong>{hasContent?(changedSince?'Backup recommended':lastExport?'Export prepared':'No backup recorded'):'Workspace empty'}</strong><small>{changedSince?'This device has changes newer than its last export.':'A backup remains important if you clear browser data or change devices.'}</small></span>
    <span><small>Last export prepared</small><strong>{format(lastExport)}</strong></span>
@@ -60,7 +60,7 @@ export function BackupTransfer({data,lastEdit,lastExport,onPrepared,onReplace,on
    </div>
    <div className="transfer-step"><span className="transfer-number">2</span><h3>Receive on another device</h3><p>Open the same planner URL on the other phone or computer and select the file you transferred.</p>
     <label className="button secondary file-label">Choose received backup<input type="file" accept=".json,application/json" onChange={selectFile}/></label>
-    <small>Preview the changes before replacing or merging. This is manual transfer, not live cloud sync.</small>
+    <small>Preview differences before importing. Manual file transfer works without cloud sign-in and does not change your cloud household by itself.</small>
    </div>
   </div>
   {incoming&&preview&&<div className="transfer-preview"><h3>Review import: {fileName}</h3>
@@ -71,6 +71,6 @@ export function BackupTransfer({data,lastEdit,lastExport,onPrepared,onReplace,on
   </div>}
   {error&&<p className="alert error" role="alert">{error}</p>}
   {notice&&<p className="maintenance-notice" role="status">{notice}</p>}
-  <details className="sync-details"><summary>Can this sync automatically across devices?</summary><p>Not yet. This release uses private, explicit transfers, with merge previews and no silent overwrites. Always-on cloud sync would need an optional secure account, encrypted transport, and a way to resolve simultaneous edits. The local-first app stays fully usable without it.</p></details>
+  <details className="sync-details"><summary>Manual transfer versus household sync</summary><p>Manual JSON backups are private exports you explicitly download, share, import or merge. The optional household sync section below uses an authenticated Supabase household and checks for changes while the app is open. Signing in does not automatically upload records. When two devices change independently, sync pauses and asks you to review the conflicting copies.</p></details>
  </section>;
 }
