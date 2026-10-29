@@ -26,7 +26,7 @@ export function MaintenanceAgenda({items,open,complete,openSeasonal}:{items:Main
     <div className="agenda-switch"><button className={horizon===30?'active':''} onClick={()=>setHorizon(30)}>30 days</button><button className={horizon===60?'active':''} onClick={()=>setHorizon(60)}>60 days</button></div>
    </div>
    <div className="agenda-stats"><span><strong>{agenda.overdue.length}</strong> due / overdue</span><span><strong>{agenda.upcoming.length}</strong> next {horizon} days</span><span><strong>{agenda.unscheduled.length}</strong> unscheduled</span></div>
-   {agenda.overdue.length>0&&<div className="agenda-section"><h3>Due now / overdue</h3>{agenda.overdue.map(row=>renderRow(row.item,pretty(row.dueDate)+' · '+Math.abs(row.daysUntil)+' days '+(row.daysUntil<0?'overdue':'due today')))}</div>}
+   {agenda.overdue.length>0&&<div className="agenda-section"><h3>Due now / overdue</h3>{agenda.overdue.map(row=>renderRow(row.item,pretty(row.dueDate)+(row.daysUntil<0?' · '+Math.abs(row.daysUntil)+' days overdue':' · due today')))}</div>}
    {agenda.upcoming.length>0&&<div className="agenda-section"><h3>Coming up</h3>{agenda.upcoming.map(row=>renderRow(row.item,pretty(row.dueDate)+' · in '+row.daysUntil+' days'))}</div>}
    {agenda.usageDue.length>0&&<div className="agenda-section"><h3>By usage</h3>{agenda.usageDue.map(row=>renderRow(row.item,row.remaining<=0?'Usage due: '+row.dueHours:'Due at '+row.dueHours+' hours / miles'))}</div>}
    {!scheduledCount&&!agenda.usageDue.length&&<p className="subtle">Nothing with a real date is due in the next {horizon} days. Set a first due date in an existing task to begin tracking it.</p>}

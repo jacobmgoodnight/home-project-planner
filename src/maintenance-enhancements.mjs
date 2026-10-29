@@ -31,10 +31,12 @@ export function maintenanceAgenda(items,asOf,horizon=30) {
  const dateRows=[], usageDue=[], unscheduled=[];
  for(const item of items){
   const d=dueMaintenance(item,asOf);
+  const usageAlert=d.dueHours!==null&&d.hourRemaining!==null&&d.hourRemaining<=10;
   if(d.dueDate) {
     const distance=dayDiff(d.dueDate,asOf);
     if(distance<=horizon)dateRows.push({item,dueDate:d.dueDate,daysUntil:distance});
-  } else if(d.dueHours!==null&&d.hourRemaining!==null&&d.hourRemaining<=10)usageDue.push({item,dueHours:d.dueHours,remaining:d.hourRemaining});
+    if(usageAlert&&distance>0)usageDue.push({item,dueHours:d.dueHours,remaining:d.hourRemaining});
+  } else if(usageAlert)usageDue.push({item,dueHours:d.dueHours,remaining:d.hourRemaining});
   else unscheduled.push(item);
  }
  dateRows.sort((a,b)=>a.daysUntil-b.daysUntil||a.item.title.localeCompare(b.item.title));
