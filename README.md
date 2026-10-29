@@ -41,9 +41,9 @@ The main navigation intentionally has **four destinations**: **Today**, **Projec
 
 ## Set up household sync
 
-**Current state:** The approved Supabase backend, app configuration and private \`hpp_*\` tables are deployed. The database permission checks and CI build passed. **A real owner/member login, two-device transfer, and offline-conflict test have not yet been completed**; don't treat production multi-device operation as field-verified until you do this.
+**Current state:** The approved Supabase backend, app configuration and private `hpp_*` tables are deployed. The database permission checks and CI build passed. **A real owner/member login, two-device transfer, and offline-conflict test have not yet been completed**; don't treat production multi-device operation as field-verified until you do this.
 
-The general Supabase project \`rwqclcpmtuebxndadkxv\` is shared with other applications by owner approval because the free organization reached its two-active-project limit. All Home Project Planner database objects have their own \`hpp_*\` names. This app includes **only a publishable browser key**—never a service-role or secret key—and does not alter the other apps' tables.
+The general Supabase project `rwqclcpmtuebxndadkxv` is shared with other applications by owner approval because the free organization reached its two-active-project limit. All Home Project Planner database objects have their own `hpp_*` names. This app includes **only a publishable browser key**—never a service-role or secret key—and does not alter the other apps' tables.
 
 1. **On your main computer:** open **Backup & data**, download a JSON backup and verify it is saved.
 2. Open **Optional household sync** (below the backup tools), create an email/password account or sign in, then create a household. Email verification may be required.
@@ -58,7 +58,7 @@ The general Supabase project \`rwqclcpmtuebxndadkxv\` is shared with other appli
 
 If an email verification link returns to a different application, the shared Supabase project's **Authentication → URL Configuration → Redirect URLs** may need this exact entry added without removing existing app entries:
 
-\`https://jacobmgoodnight.github.io/home-project-planner/\`
+`https://jacobmgoodnight.github.io/home-project-planner/`
 
 ### Privacy and backup limits
 
@@ -66,7 +66,7 @@ If an email verification link returns to a different application, the shared Sup
 - **Export JSON regularly**, even with sync enabled. A shared live snapshot is not a historical backup or undo system. Browser cleanup and iOS storage eviction can erase the local copy.
 - JSON exports contain household records, photos, receipts and potentially serial numbers. Keep exports private; **never commit exports or credentials to this public repository**.
 - The import limit is **60 MB** and the cloud snapshot limit is about **20 MB** in serialized JSON. Incoming images can be up to 15 MB before resizing (up to 1400 pixels on the longest side); PDFs must be at most 2 MB. These are practical limits, not a guarantee your device has enough free storage.
-- Because this app shares \`jacobmgoodnight.github.io\` with other Pages apps, scripts served on other paths share the same **browser origin** and can potentially access local site data and session tokens. Only host trusted apps there; use a dedicated origin/domain if stronger browser isolation becomes necessary.
+- Because this app shares `jacobmgoodnight.github.io` with other Pages apps, scripts served on other paths share the same **browser origin** and can potentially access local site data and session tokens. Only host trusted apps there; use a dedicated origin/domain if stronger browser isolation becomes necessary.
 - No bank account access, automatic purchases, analytics service, AI-generated prices, or unrequested imports from other apps.
 
 ## Cost and priority calculations
@@ -93,25 +93,25 @@ The app offers household checklist suggestions, not manufacturer-specific requir
 
 Requires **Node.js 22+** and npm.
 
-\`\`\`bash
+```bash
 npm install
 npm run dev
 npm run check
-\`\`\`
+```
 
-Production build: \`npm run build\`. The GitHub Pages build uses \`GITHUB_PAGES=true\` (configured in \`.github/workflows/verify-deploy.yml\`).
+Production build: `npm run build`. The GitHub Pages build uses `GITHUB_PAGES=true` (configured in `.github/workflows/verify-deploy.yml`).
 
 The existing GitHub Actions workflow runs unit tests, logic type-checking, the TypeScript/Vite production build and a GitHub Pages deployment. Check the [latest Actions runs](https://github.com/jacobmgoodnight/home-project-planner/actions) for the actual published revision. The repository includes fictional demo data only; choose **Backup & data → Load demo workspace** to opt into it.
 
 ### Architecture
 
 - **React 19 / TypeScript / Vite 6** for the static installable app; browser **IndexedDB** for local persistence.
-- \`src/types.ts\` and \`src/storage.ts\`: **v3** snapshot model and validated v1/v2/v3 import migration.
-- \`src/logic.mjs\`, \`src/home-insights.mjs\`, \`src/maintenance-enhancements.mjs\`, \`src/today-calendar.mjs\`: domain calculations.
-- \`src/App.tsx\` and focused components: projects, Today, maintenance, equipment, reference book, backup, and household sync.
-- \`src/cloud-client.ts\`, \`src/HouseholdSync.tsx\`: optional Supabase authentication, memberships, revision-guarded snapshot sync and conflict handling.
-- \`supabase/home-project-planner.sql\`: approved and deployed **\`hpp_*\`** schema, with row-level security, role checks and owner-only invitation/member management.
-- \`public/sw.js\`: same-origin app-shell caching for offline use. Sync and external QR image lookup still need network access.
-- \`tests/*.test.mjs\`: domain tests; [docs/QA.md](docs/QA.md) tracks device and account acceptance tests.
+- `src/types.ts` and `src/storage.ts`: **v3** snapshot model and validated v1/v2/v3 import migration.
+- `src/logic.mjs`, `src/home-insights.mjs`, `src/maintenance-enhancements.mjs`, `src/today-calendar.mjs`: domain calculations.
+- `src/App.tsx` and focused components: projects, Today, maintenance, equipment, reference book, backup, and household sync.
+- `src/cloud-client.ts`, `src/HouseholdSync.tsx`: optional Supabase authentication, memberships, revision-guarded snapshot sync and conflict handling.
+- `supabase/home-project-planner.sql`: approved and deployed **`hpp_*`** schema, with row-level security, role checks and owner-only invitation/member management.
+- `public/sw.js`: same-origin app-shell caching for offline use. Sync and external QR image lookup still need network access.
+- `tests/*.test.mjs`: domain tests; [docs/QA.md](docs/QA.md) tracks device and account acceptance tests.
 
 **Current next priority:** verify real cross-device login, data round-trip, and simultaneous offline conflict handling before adding more functionality. See the [roadmap](ROADMAP.md) for the short list.

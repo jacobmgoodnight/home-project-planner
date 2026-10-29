@@ -14,7 +14,7 @@
 - [x] 30/60-day maintenance agenda and one-time .ics calendar export
 - [x] App-open opt-in browser reminders and manual weekly recap
 - [x] Versioned JSON backups, validated v1/v2/v3 imports, new-record-only merge previews and local-first offline PWA
-- [x] Owner-approved deployment of private \`hpp_*\` Supabase schema in an existing project; no changes to other apps' tables
+- [x] Owner-approved deployment of private `hpp_*` Supabase schema in an existing project; no changes to other apps' tables
 - [x] Signed-in household sharing, one-use invitations, owner access revocation, revision-guarded optional sync and manual conflict review
 - [x] Local demo load, clear and restore pause sync to prevent unintentional shared-household overwrites
 
@@ -42,4 +42,4 @@ Bank access, automatic purchases, AI-generated prices/repair estimates, compulso
 
 ## Release requirements
 
-Run \`npm run check\`, inspect the actual GitHub Pages deployment, validate v1/v2/v3 import behavior, and complete the relevant manual checks in [docs/QA.md](docs/QA.md). Never populate demo data without an explicit user action or silently overwrite existing IndexedDB or cloud records.
+Run `npm run check`, inspect the actual GitHub Pages deployment, validate v1/v2/v3 import behavior, and complete the relevant manual checks in [docs/QA.md](docs/QA.md). Never populate demo data without an explicit user action or silently overwrite existing IndexedDB or cloud records.

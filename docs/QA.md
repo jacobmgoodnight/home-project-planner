@@ -1,6 +1,6 @@
 # Home Project Planner — verification & device acceptance
 
-**Automated CI:** \`npm run check\` runs Node domain tests, logic/storage TypeScript checks and the production React/Vite build. Check the [latest GitHub Actions run](https://github.com/jacobmgoodnight/home-project-planner/actions) for the commit that actually deployed.
+**Automated CI:** `npm run check` runs Node domain tests, logic/storage TypeScript checks and the production React/Vite build. Check the [latest GitHub Actions run](https://github.com/jacobmgoodnight/home-project-planner/actions) for the commit that actually deployed.
 
 **Automated verification is not a substitute for testing on actual Windows/iPhone browsers or using two real signed-in Supabase users.** Do not mark unchecked manual tests as passed.
 
@@ -41,17 +41,17 @@
 
 ## Server checks already performed (October 29, 2026)
 
-- [x] Owner-approved isolated \`public.hpp_*\` schema deployed into existing general Supabase project.
+- [x] Owner-approved isolated `public.hpp_*` schema deployed into existing general Supabase project.
 - [x] All four HPP tables have RLS; anonymous reads and unauthenticated direct writes denied.
 - [x] Authenticated direct INSERT/UPDATE on HPP data tables denied; snapshot writes use a checked revision RPC.
 - [x] Authenticated users have no direct SELECT privilege on invite hashes.
 - [x] Simulated unrecognized authenticated user could not read HPP household/snapshot data or use the guarded snapshot write function.
 - [x] GitHub CI production build/deploy completed for the previous integration release.
 
-**Still pending:** two-real-user RLS/invitation flows, end-to-end browser account setup, cross-device synchronization, offline conflicts and iPhone/Windows manual testing. Static advisor warnings about intentionally authenticated \`SECURITY DEFINER\` RPCs need monitoring; every such RPC checks current signed-in membership/owner rights. The invite table deliberately has no SELECT policy.
+**Still pending:** two-real-user RLS/invitation flows, end-to-end browser account setup, cross-device synchronization, offline conflicts and iPhone/Windows manual testing. Static advisor warnings about intentionally authenticated `SECURITY DEFINER` RPCs need monitoring; every such RPC checks current signed-in membership/owner rights. The invite table deliberately has no SELECT policy.
 
 ## Security and storage caveats
 
-Browser local data and auth sessions share the \`jacobmgoodnight.github.io\` origin with other apps. Only serve trusted code from that origin. Maintain private backup copies; sync is not a historical backup and can pause on conflict. Do not put credentials or household exports in public GitHub.
+Browser local data and auth sessions share the `jacobmgoodnight.github.io` origin with other apps. Only serve trusted code from that origin. Maintain private backup copies; sync is not a historical backup and can pause on conflict. Do not put credentials or household exports in public GitHub.
 
 Supabase Auth redirect URLs are shared by all applications on the same Supabase project. **Add** the Home Project Planner URL if needed; never remove another app's allowed redirects.

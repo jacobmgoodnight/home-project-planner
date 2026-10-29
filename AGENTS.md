@@ -11,7 +11,7 @@
 
 ## Versioning and persistence
 
-- Current \`Database.version = 3\`; the IndexedDB name intentionally remains \`home-project-planner-v1\`.
+- Current `Database.version = 3`; the IndexedDB name intentionally remains `home-project-planner-v1`.
 - Validate/migrate old v1/v2 JSON and existing v3 snapshots, preserving old optional fields, service history, money, equipment links and attachments.
 - If adding required fields or changing snapshot shape, add migrations, updated validators, backup tests and a clear changelog.
 - Use stable UUIDs. Manual JSON import merges **only root records with new IDs**; same-ID conflicts are not silently resolved.
@@ -20,19 +20,19 @@
 
 ## Supabase production configuration
 
-- Existing general Supabase project \`rwqclcpmtuebxndadkxv\` has **owner-approved \`hpp_*\` schema** from \`supabase/home-project-planner.sql\`. Other existing apps also use this project. **Never modify \`gw_*\`, \`hdb_*\` or unrelated tables, auth settings or redirect URLs without a specific new approval.**
+- Existing general Supabase project `rwqclcpmtuebxndadkxv` has **owner-approved `hpp_*` schema** from `supabase/home-project-planner.sql`. Other existing apps also use this project. **Never modify `gw_*`, `hdb_*` or unrelated tables, auth settings or redirect URLs without a specific new approval.**
 - Frontend publishes only the *publishable* browser key. No service-role key, password, token, personal JSON backup or serial numbers in repo.
-- Tables are protected with RLS. Authenticated browsers can SELECT their own household records, not directly INSERT/UPDATE. CAS snapshot RPC is \`SECURITY DEFINER\` with explicit \`auth.uid()\` membership, schema-shape, size and revision checks.
+- Tables are protected with RLS. Authenticated browsers can SELECT their own household records, not directly INSERT/UPDATE. CAS snapshot RPC is `SECURITY DEFINER` with explicit `auth.uid()` membership, schema-shape, size and revision checks.
 - Other owner-only and invite RPCs similarly check identity, membership/owner role, token expiry and one-use semantics. Authenticated SECURITY DEFINER RPCs are intentional but should be periodically audited.
 - Bind local sync to the **specific Supabase project URL, auth user and household ID**; selecting a different household pauses sync. Never reuse another household's revision anchor.
 - The sync component must stay **mounted at App root** across navigation, because the foreground polling loop runs only while the app is open.
 - On conflict, preserve both copies and require explicit user selection; do not auto-merge divergent same-ID documents. Export backups before deliberate cloud replacement.
-- Supabase email sign-up uses \`redirect_to\` query argument. The Pages redirect URL may need allowlisting **without deleting other apps' redirect URLs**. Do not assume two-device sign-in is already field-verified.
+- Supabase email sign-up uses `redirect_to` query argument. The Pages redirect URL may need allowlisting **without deleting other apps' redirect URLs**. Do not assume two-device sign-in is already field-verified.
 - Shared GitHub Pages origin means browser IndexedDB and stored credentials are accessible to trusted/compromised code hosted at other paths. Treat stronger origin isolation as a future security improvement.
 
 ## Verification
 
-- Run \`npm run check\` (domain tests, TS logic check and production Vite build).
-- Verify the GitHub Actions \`verify\` **and** \`deploy\` jobs both succeeded on the latest main commit.
-- Review \`docs/QA.md\` for human tests; do not claim actual owner/member two-device testing without real signed-in accounts and recorded verification.
-- Keep \`README.md\`, \`ROADMAP.md\`, \`docs/DATA_MODEL.md\`, and \`docs/QA.md\` current on any release.
+- Run `npm run check` (domain tests, TS logic check and production Vite build).
+- Verify the GitHub Actions `verify` **and** `deploy` jobs both succeeded on the latest main commit.
+- Review `docs/QA.md` for human tests; do not claim actual owner/member two-device testing without real signed-in accounts and recorded verification.
+- Keep `README.md`, `ROADMAP.md`, `docs/DATA_MODEL.md`, and `docs/QA.md` current on any release.

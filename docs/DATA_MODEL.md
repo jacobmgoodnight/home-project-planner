@@ -1,8 +1,8 @@
 # Data model — current v3
 
-The browser stores a **single version 3 snapshot** in IndexedDB under database name \`home-project-planner-v1\` (the IDB name intentionally stays constant through data migrations).
+The browser stores a **single version 3 snapshot** in IndexedDB under database name `home-project-planner-v1` (the IDB name intentionally stays constant through data migrations).
 
-\`\`\`ts
+```ts
 interface Database {
   version: 3;
   demo: boolean;
@@ -10,7 +10,7 @@ interface Database {
   maintenance: MaintenanceItem[];
   equipment: EquipmentItem[];
 }
-\`\`\`
+```
 
 ## Projects
 
@@ -20,7 +20,7 @@ Money values are stored as **integer USD cents**. An entered expense is actual s
 
 ## Maintenance
 
-Each maintenance record has a stable ID, optional \`equipmentId\` and \`projectId\`, a category and free-text asset/model, a configurable day/month/hour interval, optional user-entered first due date, warranty date, optional starter-template key, and service entries.
+Each maintenance record has a stable ID, optional `equipmentId` and `projectId`, a category and free-text asset/model, a configurable day/month/hour interval, optional user-entered first due date, warranty date, optional starter-template key, and service entries.
 
 A service entry stores the actual date, optional hours/mileage, recorded cost, notes, and optionally selected used supplies, whether on-hand stock was deducted, and a local photo/PDF receipt.
 
@@ -34,22 +34,22 @@ All attachment records contain an ID, display name, MIME type, data URL and date
 
 ## Migration and transfer
 
-\`src/maintenance-support.mjs\` upgrades valid **v1 → v2 → v3** and **v2 → v3** snapshots. Current imports validate the resulting v3 snapshot, including links to existing equipment IDs. JSON backups can be up to 60 MB at import; current cloud snapshots are limited to around 20 MB.
+`src/maintenance-support.mjs` upgrades valid **v1 → v2 → v3** and **v2 → v3** snapshots. Current imports validate the resulting v3 snapshot, including links to existing equipment IDs. JSON backups can be up to 60 MB at import; current cloud snapshots are limited to around 20 MB.
 
 Manual JSON transfer supports **replace all** or **merge only records with new root IDs**. Existing records with matching IDs are not automatically merged or overwritten; conflicts are reported. This is not a full record-level reconciliation algorithm.
 
 ## Optional household sync
 
-The Supabase database has a separate, owner-approved \`hpp_*\` namespace inside an existing shared project:
-- \`hpp_households\`: household ID and owner
-- \`hpp_members\`: explicit authenticated members with owner/member roles
-- \`hpp_snapshots\`: **one JSON snapshot per household** with revision and update metadata
-- \`hpp_invites\`: hashed one-use invite codes with expiry
+The Supabase database has a separate, owner-approved `hpp_*` namespace inside an existing shared project:
+- `hpp_households`: household ID and owner
+- `hpp_members`: explicit authenticated members with owner/member roles
+- `hpp_snapshots`: **one JSON snapshot per household** with revision and update metadata
+- `hpp_invites`: hashed one-use invite codes with expiry
 
 Row-level security protects reads. Authenticated clients **cannot directly INSERT/UPDATE** these tables; checked RPCs create homes, redeem owner-created invitations, list/revoke member access and write snapshots using expected-revision compare-and-swap. Only the **publishable key** is present in frontend source.
 
 After explicit household binding, the browser tracks the cloud revision/hash locally and checks for remote changes while the app is open. It automatically downloads when local is unchanged; uploads when cloud revision is unchanged; and **pauses for review if both changed**. This is household snapshot sync, not row-by-row conflict resolution or a full historical backup service.
 
-**Browser-origin caveat:** the other apps on the same \`jacobmgoodnight.github.io\` origin share a web security origin. Local IndexedDB and stored sessions are not a cryptographically isolated vault from any other script served under that origin.
+**Browser-origin caveat:** the other apps on the same `jacobmgoodnight.github.io` origin share a web security origin. Local IndexedDB and stored sessions are not a cryptographically isolated vault from any other script served under that origin.
 
 Potential external imports (e.g., Holiday Display Blueprint) require explicit user approval and provenance/deduplication; they do not occur automatically.
