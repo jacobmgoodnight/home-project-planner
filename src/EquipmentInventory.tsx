@@ -26,6 +26,7 @@ export function EquipmentInventory({items,maintenance,change,unlink,onBack,initi
  const [notice,setNotice]=useState('');
  const [uploading,setUploading]=useState(false);
  const [docsUploading,setDocsUploading]=useState(false);
+ const [qrOpen,setQrOpen]=useState(false);
  const [query,setQuery]=useState('');
  const [filter,setFilter]=useState<'all'|'warranty'>('all');
  const item=items.find(i=>i.id===selected);
@@ -87,7 +88,7 @@ export function EquipmentInventory({items,maintenance,change,unlink,onBack,initi
     <label className="field"><span>Notes</span><textarea rows={4} value={item.notes} onChange={e=>patch(item.id,{notes:e.target.value})}/></label>
    </div></section><div className="stack">
     <section className="panel"><h2>Label photos</h2><p className="subtle">Photograph the model/serial label once, then read it when ordering parts. Stored only in this browser.</p>
-     <label className="button secondary file-label"> {uploading?'Saving photos…':'+ Add label photo'} <input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={uploading||item.photos.length>=5} onChange={photosChanged}/></label>
+     <label className="button secondary file-label"> {uploading?'Saving photos…':'+ Add label photo'} <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={uploading||item.photos.length>=5} onChange={photosChanged}/></label>
      <div className="equipment-photos">{item.photos.map(photo=><div className="equipment-photo" key={photo.id}><a href={photo.dataUrl} download={photo.name} aria-label={'Save '+photo.name}><img src={photo.dataUrl} alt={'Equipment label: '+photo.name}/></a><div><small>{photo.name}</small><button type="button" className="small-btn" onClick={()=>{if(window.confirm('Remove this photo?'))patch(item.id,{photos:item.photos.filter(p=>p.id!==photo.id)});}}>Remove</button></div></div>)}</div>
      {!item.photos.length&&<p className="subtle">No label photos yet. Use your phone camera or photo library.</p>}
     </section>
@@ -95,6 +96,14 @@ export function EquipmentInventory({items,maintenance,change,unlink,onBack,initi
      <label className="button secondary file-label">{docsUploading?'Reading…':'+ Add manual / document'}<input type="file" multiple disabled={docsUploading||(item.documents||[]).length>=12} accept=".pdf,image/jpeg,image/png,image/webp" onChange={documentsChanged}/></label>
      {(item.documents||[]).map(doc=><div className="equipment-doc-row" key={doc.id}><a href={doc.dataUrl} download={doc.name}>{doc.name} ↧</a><button className="small-btn" onClick={()=>patch(item.id,{documents:(item.documents||[]).filter(d=>d.id!==doc.id)})}>Remove</button></div>)}
      {!(item.documents||[]).length&&<p className="subtle">No manuals or warranty files saved yet.</p>}
+    </section>
+    <section className="panel equipment-qr"><h2>QR equipment label</h2><p className="subtle">Scan this label to open the same equipment record. The receiving device must already have this home’s data (through cloud sync or a backup).</p>
+     {!qrOpen?<button className="button secondary" onClick={()=>setQrOpen(true)}>Create printable QR label</button>:
+      <div id="equipment-qr-print"><strong>{item.name||'Equipment'}</strong><small>{[item.manufacturer,item.model].filter(Boolean).join(' · ')}</small>
+       <img alt="QR code linking to this equipment record" loading="lazy" referrerPolicy="no-referrer" src={'https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data='+encodeURIComponent(location.origin+location.pathname+'?equipment='+encodeURIComponent(item.id))}/>
+       <div className="action-line"><button className="button secondary" onClick={()=>window.print()}>Print label</button><button className="small-btn" onClick={()=>setQrOpen(false)}>Hide</button></div>
+       <p className="subtle">QR generation uses goQR’s external image service. Only this app’s address and an opaque equipment ID are sent—never serial numbers, photos or your notes.</p>
+      </div>}
     </section>
     <section className="panel"><h2>Linked maintenance</h2><p className="subtle">{related.length?related.map(m=>m.title).join(' · '):'Open a maintenance task and choose this equipment to link it.'}</p></section>
    </div></div>

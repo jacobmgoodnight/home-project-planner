@@ -36,3 +36,12 @@ Bank feeds, automatic purchases, AI estimates, fabricated retailer prices, elabo
 
 ## Engineering release checklist
 Run `npm run check`, verify migration of v1/v2/v3 backups, test on mobile, inspect GitHub Pages deploy, and never replace user IndexedDB data from demo fixtures.
+
+
+## Sync and engagement status (2026-10-29)
+- [x] Implement secure-database SQL schema and gated household sync UI; dedicated Supabase project provisioning and RLS testing remain required before anyone can enable it.
+- [x] Opt-in household invites with 7-day one-time codes, safe cloud revisions and local-first behavior.
+- [x] Browser-in-use reminder check and local shareable weekly recap (not unattended push/email).
+- [x] Mobile camera capture on supported devices and opt-in QR equipment labels.
+- [ ] Provision a dedicated Supabase project in the owner's selected organization; apply schema; verify RLS as owner/member/outsider; test two devices and conflicting offline changes.
+- [ ] For future unattended reminders: implement a permissioned push/subscription server and explicit opt-in, rather than pretending browser notifications work when the PWA is closed.

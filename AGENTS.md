@@ -70,3 +70,11 @@ Future inventory import may use a mapping `{sourceApp, sourceId, projectId, mate
 - Calendar export is a user-triggered .ics snapshot of current due dates with one-day alerts, not a live subscription. No duplicate automated entries or external calendar APIs.
 - Home reference reuses local existing equipment photos, optional manuals, warranties, service receipts, replacement part links and project attachments. It never uploads personal data.
 - Equipment documents?: Attachment[] is optional for prior v3 snapshots; preserve v1-v3 backup restoration and validation.
+
+
+## Household backend security and implementation notes
+- New optional backend in supabase/home-project-planner.sql. DO NOT run against other user apps' Supabase projects. SQL has not been applied; require explicit dedicated project selection and complete RLS tests.
+- Never expose service_role, secret keys or session tokens in public GitHub. Browser accepts only Supabase publishable keys from a real HTTPS Supabase host. Verified users become household members via a private one-use invite.
+- Cloud snapshot writes must be optimistic CAS revision-gated. An offline conflict pauses sync; no auto-merge or overwrite of changed shared records. Autosync only while app open. Local IndexedDB remains canonical until user opts in.
+- Browser notifications are device permission controlled, on demand and foreground only. Weekly recap stays local or manually shared.
+- Opt-in QR uses an external API on click; only a public app URL and opaque equipment ID are transferred. Model numbers, names and serials must never be included in the QR service request.

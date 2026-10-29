@@ -1,4 +1,4 @@
-const CACHE = 'home-project-planner-v7';
+const CACHE = 'home-project-planner-v8';
 const url = path => new URL(path, self.registration.scope).toString();
 self.addEventListener('install', event => {
   event.waitUntil((async () => {

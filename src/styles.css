@@ -189,3 +189,34 @@
 .reference-actions a{text-decoration:none}
 @media(max-width:1100px){.today-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:760px){.today-grid,.setup-columns{grid-template-columns:1fr}.today-heading h1{font-size:1.7rem}.quick-overlay{padding-top:4vh}.maintenance-sections{overflow-x:auto;flex-wrap:nowrap}.maintenance-sections button{flex:0 0 auto;padding:11px 10px}}
+
+/* Optional engagement and household sync — tucked into existing pages */
+.home-reminders{margin:18px 0}
+.engagement-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:.82rem}
+.engagement-actions>span{flex:1;min-width:180px}
+.weekly-recap{padding:15px 0;border-top:1px solid #dce8e0;margin-top:14px}
+.weekly-recap textarea{width:100%;font-size:.79rem;min-height:140px;background:#f7f9f7}
+.weekly-numbers{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:12px}
+.weekly-numbers span{padding:8px;border:1px solid #e2ece4;border-radius:9px;font-size:.76rem}
+.equipment-qr #equipment-qr-print{display:flex;flex-direction:column;gap:8px;padding:11px 0;align-items:flex-start}
+.equipment-qr img{width:260px;height:260px;object-fit:contain;background:white}
+.equipment-qr small{font-size:.78rem;color:#678376}
+.household-sync{margin-bottom:16px}
+.sync-health{font-weight:800;font-size:.74rem;color:#1e7458;background:#eff7f0;padding:8px 11px;border-radius:20px;white-space:nowrap}
+.cloud-config details,.cloud-sharing{border-top:1px solid #e2ece5;padding-top:13px;margin-top:12px}
+.cloud-config summary,.cloud-sharing summary{cursor:pointer;font-size:.83rem;color:#196b50;font-weight:750;margin:10px 0}
+.cloud-config input,.cloud-first input,.cloud-sharing input{width:100%;max-width:430px;padding:10px;margin:7px 0}
+.cloud-auth .form-grid{margin:13px 0}
+.cloud-auth .form-grid input{width:100%}
+.cloud-review{margin:15px 0;padding:12px;background:#f8f9f4;border:1px solid #e2e7db;border-radius:9px;font-size:.79rem}
+.cloud-sharing button{margin:8px 0}
+.cloud-invite{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:11px;border-radius:9px;background:#fff9e8}
+.cloud-invite code{font-size:.72rem;max-width:100%;overflow-wrap:anywhere}
+.cloud-first{display:grid;gap:8px;max-width:470px}
+.cloud-footnote{font-size:.73rem;margin-top:16px}
+@media print {
+ body *{visibility:hidden!important}
+ #equipment-qr-print,#equipment-qr-print *{visibility:visible!important}
+ #equipment-qr-print{position:fixed;left:15mm;top:12mm;background:white!important;color:black!important}
+ #equipment-qr-print .action-line,#equipment-qr-print p{display:none!important}
+}

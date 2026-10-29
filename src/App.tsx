@@ -12,6 +12,8 @@ import { MaintenanceCompletion } from './MaintenanceCompletion';
 import { MaintenanceAgenda } from './MaintenanceAgenda';
 import { MaintenanceHistory } from './MaintenanceHistory';
 import { TodayDashboard } from './TodayDashboard';
+import { HomeReminders } from './HomeReminders';
+import { HouseholdSync } from './HouseholdSync';
 import { GuidedSetup } from './GuidedSetup';
 import { QuickCapture } from './QuickCapture';
 import type { QuickCaptureRequest } from './QuickCapture';
@@ -56,7 +58,8 @@ export default function App(){
   const [fatal,setFatal]=useState('');
   const [saveError,setSaveError]=useState('');
   const [saving,setSaving]=useState(false);
-  const [page,setPage]=useState<Page>('overview');
+  const [page,setPage]=useState<Page>(()=>new URLSearchParams(location.search).has('equipment')?'maintenance':'overview');
+  const [equipmentDeepLink]=useState(()=>new URLSearchParams(location.search).get('equipment')||'');
   const [selected,setSelected]=useState<string|null>(null);
   const [filter,setFilter]=useState<Filter>('all');
   const [query,setQuery]=useState('');
@@ -170,6 +173,7 @@ export default function App(){
         page==='overview'?<>
           {showSetup&&<GuidedSetup equipment={db.equipment} maintenance={db.maintenance} onInstall={installGuided} onClose={()=>setShowSetup(false)}/>}
           <TodayDashboard projects={db.projects} maintenance={db.maintenance} onQuickAdd={()=>setShowQuick(true)} onSetup={()=>setShowSetup(true)} onOpenProject={edit} onOpenMaintenance={goMaintenance} onStepDone={(projectId,taskId)=>patchProject(projectId,p=>({...p,tasks:p.tasks.map(t=>t.id===taskId?{...t,done:true}:t)}))}/>
+          <HomeReminders data={db}/>
           <details className="overview-more"><summary>Show all projects, estimates & financial overview</summary>
           <div className="stat-grid"><Stat label="Open projects" value={String(active.length)} sub={`${waiting} waiting on something`}/><Stat label="Spent on open projects" value={money(spent)} sub="Actual recorded purchases"/><Stat label="Current total forecast" value={money(forecast)} sub="Spent + remaining + contingency"/><Stat label="Dated plans this month" value={money(monthPlan)} sub="Excludes undated materials"/></div>
           <div className="section-heading"><div><h2>What should I work on?</h2><p>Actionable, unblocked projects ranked by a visible score or your override.</p></div><SmallBtn onClick={()=>navigate('projects')}>View all projects →</SmallBtn></div>
@@ -185,8 +189,12 @@ export default function App(){
           <div className="filter-chips" aria-label="Project filters">{([['all','All'],['quick','≤ 2 hours'],['cheap','Under $100'],['overdue','Overdue'],['waiting','Waiting'],['month','This month']] as [Filter,string][]).map(([key,title])=><button key={key} onClick={()=>setFilter(key)} className={filter===key?'active':''}>{title}</button>)}</div>
           <p className="results-note">{shown.length} project{shown.length===1?'':'s'} · Completed items are included in All · Under $100 uses remaining estimated cost</p>
           {shown.length?<div className="project-grid">{shown.map(p=><ProjectCard key={p.id} p={p} projects={db.projects} open={()=>edit(p.id)}/>)}</div>:<EmptyState title="No matching projects" body="Try a different filter or add a new project." action="Add project" onClick={create}/>}
-        </>:page==='maintenance'?<MaintenanceView key={maintenanceFocus||'main'} focusId={maintenanceFocus} onOpenProject={edit} items={db.maintenance} projects={db.projects} equipment={db.equipment} change={fn=>patch(d=>({...d,maintenance:fn(d.maintenance)}))} changeEquipment={fn=>patch(d=>({...d,equipment:fn(d.equipment)}))} unlinkEquipment={id=>patch(d=>({...d,maintenance:d.maintenance.map(m=>m.equipmentId===id?{...m,equipmentId:''}:m)}))} />:
+        </>:page==='maintenance'?<MaintenanceView key={maintenanceFocus||equipmentDeepLink||'main'} equipmentDeepLink={equipmentDeepLink} focusId={maintenanceFocus} onOpenProject={edit} items={db.maintenance} projects={db.projects} equipment={db.equipment} change={fn=>patch(d=>({...d,maintenance:fn(d.maintenance)}))} changeEquipment={fn=>patch(d=>({...d,equipment:fn(d.equipment)}))} unlinkEquipment={id=>patch(d=>({...d,maintenance:d.maintenance.map(m=>m.equipmentId===id?{...m,equipmentId:''}:m)}))} />:
           <div className="data-page"><div className="page-heading"><div><h1>Keep your plans safe.</h1><p>Your data lives in this browser, on this device, until you export it.</p></div></div>
+            <HouseholdSync data={db} onReplace={value=>{
+              if(validateBackup(value))patch(()=>value);
+              else statusNotice('Cloud copy failed validation; local data was not changed.');
+            }}/>
             <BackupTransfer data={db} lastEdit={lastEdit} lastExport={lastExport} onPrepared={noteExport} onReplace={replaceBackup} onMerge={mergeBackup}/>
             <section className="panel"><h2>Workspace controls</h2><p>Need an example before starting? Load fictional projects and comparisons. This replaces the current workspace.</p><div className="action-line"><button className="button secondary" onClick={()=>{if(window.confirm('Replace all current data with fictional demo projects? Export first if needed.')){patch(()=>demoData());setSelected(null);statusNotice('Fictional demo workspace loaded.');}}}>Load demo workspace</button><button className="button danger" onClick={()=>{if(window.confirm('Permanently remove ALL projects and maintenance records on this device? Export a backup first.')){patch(()=>emptyDatabase());setSelected(null);statusNotice('Local workspace cleared.');}}}>Clear all data</button></div></section>
             <section className="panel"><h2>How your data works</h2><ul className="help-list"><li>Stored in this browser’s IndexedDB database; GitHub Pages does not receive your records.</li><li>Different browsers, phones and private tabs have separate data. No automatic sync.</li><li>Clearing site data can erase your projects. Export regularly, especially before major changes.</li><li>Photos and PDFs are embedded in the JSON backup. Large attachments make backups larger.</li><li>For privacy, exports are created on-device. No bank access, purchase automation or shopping data collection.</li></ul></section>
@@ -274,14 +282,14 @@ function ProjectEditor({project:p,allProjects,tab,setTab,patch,back,remove,alert
   </div>;
 }
 
-function MaintenanceView({items,projects,equipment,focusId,onOpenProject,change,changeEquipment,unlinkEquipment}:{items:MaintenanceItem[];projects:Project[];equipment:EquipmentItem[];focusId:string;onOpenProject:(id:string)=>void;change:(fn:(items:MaintenanceItem[])=>MaintenanceItem[])=>void;changeEquipment:(fn:(items:EquipmentItem[])=>EquipmentItem[])=>void;unlinkEquipment:(id:string)=>void}){
+function MaintenanceView({items,projects,equipment,focusId,equipmentDeepLink,onOpenProject,change,changeEquipment,unlinkEquipment}:{items:MaintenanceItem[];projects:Project[];equipment:EquipmentItem[];focusId:string;equipmentDeepLink:string;onOpenProject:(id:string)=>void;change:(fn:(items:MaintenanceItem[])=>MaintenanceItem[])=>void;changeEquipment:(fn:(items:EquipmentItem[])=>EquipmentItem[])=>void;unlinkEquipment:(id:string)=>void}){
  const [selected,setSelected]=useState<string|null>(focusId||null);
  const [showPresets,setShowPresets]=useState(false);
  const [section,setSection]=useState<'upcoming'|'tasks'|'history'|'reference'>('upcoming');
  const [presetMode,setPresetMode]=useState<'home'|'seasonal'>('home');
  const [completing,setCompleting]=useState<string|null>(null);
- const [showEquipment,setShowEquipment]=useState(false);
- const [equipmentFocus,setEquipmentFocus]=useState('');
+ const [showEquipment,setShowEquipment]=useState(Boolean(equipmentDeepLink));
+ const [equipmentFocus,setEquipmentFocus]=useState(equipmentDeepLink);
  const [picks,setPicks]=useState<string[]>(()=>MAINTENANCE_PRESETS.filter(p=>p.defaultSelected).map(p=>p.key));
  const [notice,setNotice]=useState('');
  const item=items.find(m=>m.id===selected);

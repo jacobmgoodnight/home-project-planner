@@ -169,3 +169,12 @@ Use **Quick add** from the header for an unchecked project step, an unscheduled 
 Open **Maintenance → Upcoming & supplies → Calendar reminders** to export an iCalendar (.ics) file. It contains one all-day event for each maintenance task with a real next due date and a reminder one day before. Import the file in Apple, Google or Outlook Calendar. It is a snapshot, not live calendar sync: after completing service, re-export and manage old calendar entries as needed.
 
 Open **Maintenance → Home reference** for one searchable view of equipment photos, manuals, warranty dates, linked part numbers, receipts and project attachments. Save PDF or image manuals in **Maintenance → Equipment → [item] → Manuals & warranty files**. These are saved locally, included in JSON backups, and are never uploaded to the public repository.
+
+
+## Optional household sync, notifications, QR labels and weekly recap
+
+**Today → Reminders & weekly recap** shows real 7-day maintenance/warranty alerts. Browser notifications require explicit permission and only run on request while the app is open; the app does not claim background push delivery. Weekly recap is generated locally from dated service and spending records and can be copied or shared; it is not automatically emailed. Project and maintenance expenses may overlap.
+
+**Maintenance → Equipment** now supports mobile rear-camera label capture (when the device/browser offers it) and **Create printable QR label**. The label encodes only the public app URL plus an opaque equipment ID. QR generation is opt-in and uses the public goQR image service, which receives that URL but not appliance names, serial numbers or photos. A scanned link works on another device only after that device has the household data.
+
+**Backup & data → Optional household sync** supports a dedicated Supabase backend after one-time setup. The SQL schema is in `supabase/home-project-planner.sql` and is NOT automatically deployed to unrelated projects. It includes signed-in household membership, owner-generated one-use invitations, RLS access controls, and optimistic version checks. Once a dedicated project is configured, choose a household and initialize the cloud from a local backup; other signed-in household devices can use the shared copy. Auto-sync polls while the app is open and on reconnect. Concurrent updates to the same household snapshot are paused for review, never silently overwritten. Sign-in requires the project's configured email provider. Never enter a service-role/secret key.
