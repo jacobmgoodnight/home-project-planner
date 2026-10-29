@@ -246,3 +246,16 @@
 .setup-routine-options summary{cursor:pointer;color:#16684e;font-size:.79rem;font-weight:750;margin-bottom:8px}
 .setup-routine-options .field{display:block;margin:10px 0}
 .setup-routine-options input,.setup-routine-options select{width:100%;max-width:100%;min-width:0}
+
+/* Keep simple projects simple without hiding advanced capabilities */
+.project-advanced{grid-column:1/-1;border:1px solid #dfeae3;border-radius:10px;padding:12px;margin-top:9px;min-width:0;background:#f9fbf9}
+.project-advanced>summary{cursor:pointer;font-size:.84rem;font-weight:800;color:#1d6550}
+.project-advanced>.form-grid{margin-top:14px}
+.project-advanced>section.panel{margin-top:12px}
+@media(max-width:760px){
+ .editor-tabs{display:flex;gap:4px;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+ .editor-tabs button{flex:0 0 auto;min-width:66px;min-height:44px}
+ .two-column,.form-grid,.setup-columns{grid-template-columns:1fr}
+ .top-actions .save-indicator{font-size:.69rem}
+ .content{min-width:0}
+}
