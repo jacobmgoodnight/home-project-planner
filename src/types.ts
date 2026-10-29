@@ -29,16 +29,22 @@ export interface MaintenanceSupply {
   quantity: number; onHand: number; unitCents: number;
   store: string; url: string; notes: string;
 }
+export interface EquipmentItem {
+  id: string; name: string; location: string; manufacturer: string; model: string;
+  serial: string; purchasedOn: string; warrantyUntil: string; notes: string;
+  photos: Attachment[];
+}
 export interface MaintenanceItem {
+  equipmentId: string;
   id: string; title: string; asset: string; category: Category; projectId: string;
   intervalDays: number; intervalMonths?: number; firstDueDate?: string; templateKey?: string;
   intervalHours: number; currentHours: number | null;
   warrantyUntil: string; notes: string; modelNumber: string; supplies: MaintenanceSupply[]; entries: ServiceEntry[];
 }
-export interface Database { version: 2; demo: boolean; projects: Project[]; maintenance: MaintenanceItem[] }
+export interface Database { version: 3; demo: boolean; projects: Project[]; maintenance: MaintenanceItem[]; equipment: EquipmentItem[] }
 export function uid() { return crypto.randomUUID(); }
 export const today = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-export const emptyDatabase = (): Database => ({ version: 2, demo: false, projects: [], maintenance: [] });
+export const emptyDatabase = (): Database => ({ version: 3, demo: false, projects: [], maintenance: [], equipment: [] });
 export function newProject(): Project {
   const now = new Date().toISOString();
   return { id: uid(), name: '', category: 'Home', status: 'Planned', description: '', targetDate: '', nextAction: '',
@@ -49,5 +55,9 @@ export function newProject(): Project {
 }
 export function newMaintenance(): MaintenanceItem {
   return { id: uid(), title: '', asset: '', category: 'Maintenance', projectId: '',
-    intervalDays: 0, intervalMonths: 0, firstDueDate: '', templateKey: '', intervalHours: 0, currentHours: null, warrantyUntil: '', notes: '', modelNumber: '', supplies: [], entries: [] };
+    equipmentId: '', intervalDays: 0, intervalMonths: 0, firstDueDate: '', templateKey: '', intervalHours: 0, currentHours: null, warrantyUntil: '', notes: '', modelNumber: '', supplies: [], entries: [] };
+}
+
+export function newEquipment(): EquipmentItem {
+  return {id:uid(),name:'',location:'',manufacturer:'',model:'',serial:'',purchasedOn:'',warrantyUntil:'',notes:'',photos:[]};
 }

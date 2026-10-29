@@ -1,11 +1,18 @@
 import { dueMaintenance } from './logic.mjs';
 /** v1 snapshots did not include parts; preserve all existing data and service dates. */
 export function upgradeSnapshot(snapshot) {
-  if(!snapshot||typeof snapshot!=='object'||snapshot.version!==1||!Array.isArray(snapshot.maintenance))return snapshot;
-  return {...snapshot,version:2,maintenance:snapshot.maintenance.map(item=>({
-    ...item,modelNumber:typeof item.modelNumber==='string'?item.modelNumber:'',
-    supplies:Array.isArray(item.supplies)?item.supplies:[]
-  }))};
+  if(!snapshot||typeof snapshot!=='object')return snapshot;
+  let updated=snapshot;
+  if(updated.version===1&&Array.isArray(updated.maintenance)){
+    updated={...updated,version:2,maintenance:updated.maintenance.map(item=>({
+      ...item,modelNumber:typeof item.modelNumber==='string'?item.modelNumber:'',
+      supplies:Array.isArray(item.supplies)?item.supplies:[]
+    }))};
+  }
+  if(updated.version===2&&Array.isArray(updated.maintenance)){
+    return {...updated,version:3,equipment:[],maintenance:updated.maintenance.map(item=>({...item,equipmentId:''}))};
+  }
+  return updated;
 }
 export function quantityToBuy(part) {return Math.max(0,(Number(part.quantity)||0)-(Number(part.onHand)||0));}
 export function shoppingRows(items,asOf,all=false) {
@@ -30,4 +37,12 @@ export function shoppingListText(rows) {
       p.store&&'Store: '+p.store,p.url&&'Link: '+p.url].filter(Boolean);
     return row.quantity+' × '+(p.name||'Unspecified part')+' ('+row.maintenanceTitle+')'+(details.length?'\n  '+details.join(' | '):'');
   }).join('\n');
+}
+
+/** Restocking is inventory-only: never record spending or consume stock on service completion. */
+export function stockAfterRestock(onHand,added) {
+  if(!Number.isSafeInteger(onHand)||onHand<0||!Number.isSafeInteger(added)||added<=0||onHand+added>9999) {
+    throw new Error('Restock must be a whole number between 1 and available storage capacity.');
+  }
+  return onHand+added;
 }

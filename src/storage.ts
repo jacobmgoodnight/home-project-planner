@@ -1,4 +1,4 @@
-import type { Database, Project, MaintenanceItem } from './types';
+import type { Database, Project, MaintenanceItem, EquipmentItem } from './types';
 import { CATEGORIES, STATUSES } from './types';
 import { upgradeSnapshot } from './maintenance-support.mjs';
 const DB_NAME = 'home-project-planner-v1';
@@ -53,6 +53,16 @@ const optUrl=(v:unknown):boolean=>text(v)&&(v===''||/^https?:\/\//i.test(v));
 const simple=(v:unknown, fields:string[]):v is Record<string,unknown>=>object(v)&&fields.every(k=>k in v);
 const uniqueIds=(rows:unknown[])=>new Set(rows.map(x=>(x as {id:string}).id)).size===rows.length;
 
+function checkAttachment(v:unknown):boolean {
+  return simple(v,['id','name','mime','dataUrl','date'])&&id(v.id)&&text(v.name)&&text(v.date)&&
+    text(v.mime)&&['application/pdf','image/jpeg','image/png','image/webp'].includes(v.mime)&&text(v.dataUrl)&&
+    /^data:(image\/(jpeg|png|webp)|application\/pdf);base64,/.test(v.dataUrl);
+}
+function checkEquipment(v:unknown):v is EquipmentItem {
+  return simple(v,['id','name','location','manufacturer','model','serial','purchasedOn','warrantyUntil','notes','photos'])&&
+    id(v.id)&&['name','location','manufacturer','model','serial','purchasedOn','warrantyUntil','notes'].every(k=>text(v[k]))&&
+    array(v.photos)&&v.photos.length<=10&&uniqueIds(v.photos)&&v.photos.every(x=>checkAttachment(x)&&typeof (x as {mime:string}).mime==='string'&&(x as {mime:string}).mime.startsWith('image/'));
+}
 function checkProject(v:unknown):v is Project {
   if(!simple(v,['id','name','category','status','description','targetDate','nextAction','estimatedHours','budgetCents','laborEstimateCents','contingencyPercent','urgency','financialImpact','importance','override','blockedBy','tasks','materials','expenses','futureCosts','quotes','options','attachments','createdAt','updatedAt']))return false;
   if(!id(v.id)||!text(v.name)||!CATEGORIES.includes(v.category as typeof CATEGORIES[number])||!STATUSES.includes(v.status as typeof STATUSES[number])||!['auto','first','later'].includes(v.override as string))return false;
@@ -79,8 +89,8 @@ function checkSupply(v:unknown):boolean {
     cents(v.unitCents) && optUrl(v.url);
 }
 function checkMaintenance(v:unknown):v is MaintenanceItem {
-  return simple(v,['id','title','asset','category','projectId','intervalDays','intervalHours','currentHours','warrantyUntil','notes','entries'])&&
-    id(v.id)&&['title','asset','projectId','warrantyUntil','notes'].every(k=>text(v[k]))&&CATEGORIES.includes(v.category as typeof CATEGORIES[number])&&
+  return simple(v,['id','title','asset','category','projectId','equipmentId','intervalDays','intervalHours','currentHours','warrantyUntil','notes','entries'])&&
+    id(v.id)&&['title','asset','projectId','equipmentId','warrantyUntil','notes'].every(k=>text(v[k]))&&CATEGORIES.includes(v.category as typeof CATEGORIES[number])&&
     nonnegative(v.intervalDays)&&(v.intervalMonths===undefined||(Number.isSafeInteger(v.intervalMonths)&&nonnegative(v.intervalMonths)&&Number(v.intervalMonths)<=120))&&
     (v.firstDueDate===undefined||(text(v.firstDueDate)&&(v.firstDueDate===''||/^\d{4}-\d{2}-\d{2}$/.test(v.firstDueDate))))&&
     (v.templateKey===undefined||(text(v.templateKey)&&v.templateKey.length<100))&&text(v.modelNumber)&&v.modelNumber.length<500&&
@@ -88,16 +98,16 @@ function checkMaintenance(v:unknown):v is MaintenanceItem {
     array(v.entries)&&uniqueIds(v.entries)&&v.entries.every(x=>simple(x,['id','date','hours','costCents','notes'])&&id(x.id)&&text(x.date)&&text(x.notes)&&cents(x.costCents)&&(x.hours===null||nonnegative(x.hours)));
 }
 export function validateBackup(data:unknown):data is Database {
-  return object(data)&&data.version===2&&typeof data.demo==='boolean'&&array(data.projects)&&array(data.maintenance)&&
-    data.projects.length<=10000&&data.maintenance.length<=10000&&data.projects.every(checkProject)&&data.maintenance.every(checkMaintenance)&&
-    uniqueIds(data.projects)&&uniqueIds(data.maintenance);
+  return object(data)&&data.version===3&&typeof data.demo==='boolean'&&array(data.projects)&&array(data.maintenance)&&array(data.equipment)&&
+    data.projects.length<=10000&&data.maintenance.length<=10000&&data.equipment.length<=10000&&data.projects.every(checkProject)&&data.maintenance.every(checkMaintenance)&&data.equipment.every(checkEquipment)&&
+    uniqueIds(data.projects)&&uniqueIds(data.maintenance)&&uniqueIds(data.equipment)&&data.maintenance.every(m=>!m.equipmentId||data.equipment.some(e=>e.id===m.equipmentId));
 }
 export async function readBackup(file:File):Promise<Database> {
   if(file.size>60*1024*1024)throw new Error('Backup is larger than the 60 MB import limit.');
   let parsed:unknown;
   try {parsed=JSON.parse(await file.text());}catch{throw new Error('This file is not valid JSON.');}
   const migrated=upgradeSnapshot(parsed);
-  if(!validateBackup(migrated))throw new Error('Invalid or unsupported backup. Expected a valid version 1 or 2 Home Project Planner export.');
+  if(!validateBackup(migrated))throw new Error('Invalid or unsupported backup. Expected a valid version 1, 2 or 3 Home Project Planner export.');
   return migrated;
 }
 export function downloadBackup(data:Database) {
