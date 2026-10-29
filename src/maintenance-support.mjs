@@ -14,7 +14,7 @@ export function upgradeSnapshot(snapshot) {
   }
   return updated;
 }
-export function quantityToBuy(part) {return Math.max(0,(Number(part.quantity)||0)-(Number(part.onHand)||0));}
+export function quantityToBuy(part) {return Math.max(0,Math.max(Number(part.quantity)||0,Number(part.minOnHand)||0)-(Number(part.onHand)||0));}
 export function shoppingRows(items,asOf,all=false) {
   return items.flatMap(item=>{
     const due=dueMaintenance(item,asOf);

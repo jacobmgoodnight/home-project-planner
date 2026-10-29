@@ -86,7 +86,7 @@ function checkSupply(v:unknown):boolean {
     id(v.id) && ['name','size','partNumber','store','notes'].every(k=>text(v[k])) &&
     Number.isSafeInteger(v.quantity) && Number(v.quantity)>0 && Number(v.quantity)<=9999 &&
     Number.isSafeInteger(v.onHand) && Number(v.onHand)>=0 && Number(v.onHand)<=9999 &&
-    cents(v.unitCents) && optUrl(v.url);
+    cents(v.unitCents) && (v.minOnHand===undefined||(Number.isSafeInteger(v.minOnHand)&&nonnegative(v.minOnHand)&&Number(v.minOnHand)<=9999))&&optUrl(v.url);
 }
 function checkMaintenance(v:unknown):v is MaintenanceItem {
   return simple(v,['id','title','asset','category','projectId','equipmentId','intervalDays','intervalHours','currentHours','warrantyUntil','notes','entries'])&&
@@ -95,7 +95,12 @@ function checkMaintenance(v:unknown):v is MaintenanceItem {
     (v.firstDueDate===undefined||(text(v.firstDueDate)&&(v.firstDueDate===''||/^\d{4}-\d{2}-\d{2}$/.test(v.firstDueDate))))&&
     (v.templateKey===undefined||(text(v.templateKey)&&v.templateKey.length<100))&&text(v.modelNumber)&&v.modelNumber.length<500&&
     array(v.supplies)&&v.supplies.length<=500&&uniqueIds(v.supplies)&&v.supplies.every(checkSupply)&&nonnegative(v.intervalHours)&&(v.currentHours===null||nonnegative(v.currentHours))&&
-    array(v.entries)&&uniqueIds(v.entries)&&v.entries.every(x=>simple(x,['id','date','hours','costCents','notes'])&&id(x.id)&&text(x.date)&&text(x.notes)&&cents(x.costCents)&&(x.hours===null||nonnegative(x.hours)));
+    array(v.entries)&&uniqueIds(v.entries)&&v.entries.every(x=>simple(x,['id','date','hours','costCents','notes'])&&id(x.id)&&text(x.date)&&text(x.notes)&&cents(x.costCents)&&(x.hours===null||nonnegative(x.hours))&&
+      (x.stockDeducted===undefined||typeof x.stockDeducted==='boolean')&&
+      (x.receipt===undefined&&true||x.receipt!==undefined&&checkAttachment(x.receipt))&&
+      (x.usedSupplies===undefined||(array(x.usedSupplies)&&x.usedSupplies.length<=500&&
+        x.usedSupplies.every(s=>simple(s,['partId','quantity'])&&id(s.partId)&&Number.isSafeInteger(s.quantity)&&Number(s.quantity)>0&&Number(s.quantity)<=9999)&&
+        new Set(x.usedSupplies.map(s=>(s as {partId:string}).partId)).size===x.usedSupplies.length)));
 }
 export function validateBackup(data:unknown):data is Database {
   return object(data)&&data.version===3&&typeof data.demo==='boolean'&&array(data.projects)&&array(data.maintenance)&&array(data.equipment)&&

@@ -23,10 +23,11 @@ export interface Project {
   futureCosts: FutureCost[]; quotes: Quote[]; options: DecisionOption[];
   attachments: Attachment[]; createdAt: string; updatedAt: string;
 }
-export interface ServiceEntry { id: string; date: string; hours: number | null; costCents: number; notes: string }
+export interface UsedSupply { partId: string; quantity: number }
+export interface ServiceEntry { id: string; date: string; hours: number | null; costCents: number; notes: string; usedSupplies?: UsedSupply[]; stockDeducted?: boolean; receipt?: Attachment }
 export interface MaintenanceSupply {
   id: string; name: string; size: string; partNumber: string;
-  quantity: number; onHand: number; unitCents: number;
+  quantity: number; onHand: number; minOnHand?: number; unitCents: number;
   store: string; url: string; notes: string;
 }
 export interface EquipmentItem {
