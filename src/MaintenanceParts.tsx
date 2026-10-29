@@ -14,7 +14,7 @@ function ProductUrl({value,change}:{value:string;change:(v:string)=>void}) {
  function commit(){const v=draft.trim();if(v&&!/^https?:\/\/[^\s]+$/i.test(v)){setError('Enter a complete http(s) product URL.');return;}setError('');change(v);}
  return <><input aria-label="Product link" type="url" inputMode="url" placeholder="https://..." value={draft} onChange={e=>{setDraft(e.target.value);setError('');}} onBlur={commit}/>{error&&<small role="alert" className="part-error">{error}</small>}</>;
 }
-export function MaintenancePartsEditor({item,change}:{item:MaintenanceItem;change:(parts:MaintenanceSupply[])=>void}) {
+export function MaintenancePartsEditor({item,change,restock}:{item:MaintenanceItem;change:(parts:MaintenanceSupply[])=>void;restock:(partId:string,count:number)=>void}) {
  const parts=item.supplies||[];
  const update=(id:string,fields:Partial<MaintenanceSupply>)=>change(parts.map(p=>p.id===id?{...p,...fields}:p));
  const add=()=>{const name=item.templateKey==='hvac-filter'?'HVAC air filter':item.templateKey==='fridge-water'?'Refrigerator water filter':item.title.toLowerCase().includes('filter')?'Replacement filter':'';
@@ -31,12 +31,12 @@ export function MaintenancePartsEditor({item,change}:{item:MaintenanceItem;chang
     <label className="field"><span>Estimated unit price ($)</span><Price cents={p.unitCents} change={v=>update(p.id,{unitCents:v})}/></label>
     <label className="field"><span>Preferred product link</span><ProductUrl value={p.url} change={v=>update(p.id,{url:v})}/></label>
    </div>
-   <div className="part-footer"><span>{quantityToBuy(p)>0?'Need '+quantityToBuy(p)+' to restock':'Enough on hand for next service'}</span><span>{p.unitCents>0?'Estimated cost to buy: '+money(Math.round(quantityToBuy(p)*p.unitCents)):'Price not set'}</span>{/^https?:\/\//i.test(p.url)&&<a href={p.url} target="_blank" rel="noopener noreferrer">Product ↗</a>}</div>
+   <div className="part-footer"><span>{quantityToBuy(p)>0?'Need '+quantityToBuy(p)+' to restock':'Enough on hand for next service'}</span>{quantityToBuy(p)>0&&<button className="small-btn" type="button" onClick={()=>restock(p.id,quantityToBuy(p))}>Record restock +{quantityToBuy(p)}</button>}<span>{p.unitCents>0?'Estimated cost to buy: '+money(Math.round(quantityToBuy(p)*p.unitCents)):'Price not set'}</span>{/^https?:\/\//i.test(p.url)&&<a href={p.url} target="_blank" rel="noopener noreferrer">Product ↗</a>}</div>
   </div>)}
   <p className="subtle part-footnote">Update on-hand stock manually after replacing parts. This is a shopping estimate, not an expense or a purchase.</p>
  </section>;
 }
-export function MaintenanceShoppingPanel({items,open}:{items:MaintenanceItem[];open:(id:string)=>void}) {
+export function MaintenanceShoppingPanel({items,open,restock}:{items:MaintenanceItem[];open:(id:string)=>void;restock:(id:string,partId:string,count:number)=>void}) {
  const [all,setAll]=useState(false),[notice,setNotice]=useState('');
  const d=new Date(),date=[String(d.getFullYear()),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
  const rows=shoppingRows(items,date,all),summary=shoppingSummary(rows);
@@ -47,7 +47,7 @@ export function MaintenanceShoppingPanel({items,open}:{items:MaintenanceItem[];o
   <div className="shopping-stats"><span><strong>{summary.partCount}</strong> part types needed</span><span><strong>{money(summary.knownCents)}</strong> known estimate{summary.unknownPrices>0?' + '+summary.unknownPrices+' price(s) unknown':''}</span></div>
   {rows.length?<><div className="shopping-rows">{rows.map(r=><div className="shopping-row" key={r.maintenanceId+'-'+r.part.id}>
     <div><strong>{r.quantity} × {r.part.name||'Part name needed'}</strong><small>{r.maintenanceTitle} · {[r.part.size,r.part.partNumber].filter(Boolean).join(' · ')||'Save size / part number'}</small><small>{r.part.store||'Store not set'}</small></div>
-    <div className="shopping-row-actions"><span>{r.estimatedCents===null?'Price unknown':money(r.estimatedCents)}</span>{/^https?:\/\//i.test(r.part.url)&&<a href={r.part.url} target="_blank" rel="noopener noreferrer">Shop ↗</a>}<button className="small-btn" onClick={()=>open(r.maintenanceId)}>Edit details</button></div>
+    <div className="shopping-row-actions"><span>{r.estimatedCents===null?'Price unknown':money(r.estimatedCents)}</span>{/^https?:\/\//i.test(r.part.url)&&<a href={r.part.url} target="_blank" rel="noopener noreferrer">Shop ↗</a>}<button className="small-btn" onClick={()=>restock(r.maintenanceId,r.part.id,r.quantity)}>Record restock +{r.quantity}</button><button className="small-btn" onClick={()=>open(r.maintenanceId)}>Edit details</button></div>
   </div>)}</div><button className="button secondary" onClick={copy}>Copy shopping list</button></>:<p className="subtle">No parts to buy in this view. Add part details under a maintenance task or include later tasks.</p>}
   {!!missing.length&&<div className="parts-setup"><strong>{missing.length} filter task(s) need exact part details</strong><p>No dimensions, part numbers, or product links have been assumed.</p><button className="small-btn" onClick={()=>open(missing[0].id)}>Add part details →</button></div>}
   {notice&&<p className="maintenance-notice" role="status">{notice}</p>}

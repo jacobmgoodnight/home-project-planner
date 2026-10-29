@@ -7,6 +7,9 @@ import { attachmentFromFile, downloadBackup, load, readBackup, save, validateBac
 import { demoData } from './demo';
 import { MAINTENANCE_PRESETS,createFromPreset,isPresetInstalled } from './maintenance-presets';
 import { MaintenancePartsEditor,MaintenanceShoppingPanel } from './MaintenanceParts';
+import { EquipmentInventory } from './EquipmentInventory';
+import type { EquipmentItem } from './types';
+import { stockAfterRestock } from './maintenance-support.mjs';
 
 type Page = 'overview'|'projects'|'maintenance'|'data';
 type Filter = 'all'|'quick'|'cheap'|'overdue'|'waiting'|'month';
@@ -127,7 +130,7 @@ export default function App(){
           <div className="filter-chips" aria-label="Project filters">{([['all','All'],['quick','≤ 2 hours'],['cheap','Under $100'],['overdue','Overdue'],['waiting','Waiting'],['month','This month']] as [Filter,string][]).map(([key,title])=><button key={key} onClick={()=>setFilter(key)} className={filter===key?'active':''}>{title}</button>)}</div>
           <p className="results-note">{shown.length} project{shown.length===1?'':'s'} · Completed items are included in All · Under $100 uses remaining estimated cost</p>
           {shown.length?<div className="project-grid">{shown.map(p=><ProjectCard key={p.id} p={p} projects={db.projects} open={()=>edit(p.id)}/>)}</div>:<EmptyState title="No matching projects" body="Try a different filter or add a new project." action="Add project" onClick={create}/>}
-        </>:page==='maintenance'?<MaintenanceView items={db.maintenance} projects={db.projects} change={fn=>patch(d=>({...d,maintenance:fn(d.maintenance)}))} />:
+        </>:page==='maintenance'?<MaintenanceView items={db.maintenance} projects={db.projects} equipment={db.equipment} change={fn=>patch(d=>({...d,maintenance:fn(d.maintenance)}))} changeEquipment={fn=>patch(d=>({...d,equipment:fn(d.equipment)}))} unlinkEquipment={id=>patch(d=>({...d,maintenance:d.maintenance.map(m=>m.equipmentId===id?{...m,equipmentId:''}:m)}))} />:
           <div className="data-page"><div className="page-heading"><div><h1>Keep your plans safe.</h1><p>Your data lives in this browser, on this device, until you export it.</p></div></div>
             <div className="data-grid"><section className="panel"><div className="panel-icon">⇩</div><h2>Export a complete backup</h2><p>Download JSON containing projects, budgets, maintenance history, photos, and receipts. Keep a copy somewhere safe.</p><button className="button primary" onClick={()=>downloadBackup(db)}>Download backup</button></section>
             <section className="panel"><div className="panel-icon">⇧</div><h2>Restore a backup</h2><p>Import a backup previously exported from this app. Restoring replaces everything currently in this browser.</p><label className="button secondary file-label">Choose backup file<input type="file" accept=".json,application/json" onChange={async e=>{const f=e.target.files?.[0];if(f)await restore(f);e.target.value='';}}/></label></section></div>
@@ -216,14 +219,25 @@ function ProjectEditor({project:p,allProjects,tab,setTab,patch,back,remove,alert
   </div>;
 }
 
-function MaintenanceView({items,projects,change}:{items:MaintenanceItem[];projects:Project[];change:(fn:(items:MaintenanceItem[])=>MaintenanceItem[])=>void}){
+function MaintenanceView({items,projects,equipment,change,changeEquipment,unlinkEquipment}:{items:MaintenanceItem[];projects:Project[];equipment:EquipmentItem[];change:(fn:(items:MaintenanceItem[])=>MaintenanceItem[])=>void;changeEquipment:(fn:(items:EquipmentItem[])=>EquipmentItem[])=>void;unlinkEquipment:(id:string)=>void}){
  const [selected,setSelected]=useState<string|null>(null);
  const [showPresets,setShowPresets]=useState(false);
+ const [showEquipment,setShowEquipment]=useState(false);
+ const [equipmentFocus,setEquipmentFocus]=useState('');
  const [picks,setPicks]=useState<string[]>(()=>MAINTENANCE_PRESETS.filter(p=>p.defaultSelected).map(p=>p.key));
  const [notice,setNotice]=useState('');
  const item=items.find(m=>m.id===selected);
  function patch(id:string,fn:(m:MaintenanceItem)=>MaintenanceItem){change(rows=>rows.map(x=>x.id===id?fn(x):x));}
  function add(){const m=newMaintenance();m.title='New maintenance item';change(rows=>[m,...rows]);setSelected(m.id);}
+ function recordRestock(id:string,partId:string,requested:number){
+  const found=items.find(m=>m.id===id)?.supplies.find(p=>p.id===partId);
+  if(!found||requested<1||!Number.isSafeInteger(requested))return;
+  if(!window.confirm('Record '+requested+' additional '+(found.name||'part')+' as on hand? This does not record a payment.'))return;
+  try {
+    patch(id,m=>({...m,supplies:m.supplies.map(p=>p.id===partId?{...p,onHand:stockAfterRestock(p.onHand,requested)}:p)}));
+    setNotice('Inventory updated. Add any actual spending separately in a project.');
+  }catch(e){setNotice(e instanceof Error?e.message:'Could not update stock.');}
+ }
  function markDone(id:string){patch(id,m=>({...m,entries:[...m.entries,{id:uid(),date:today(),hours:m.currentHours,costCents:0,notes:'Completed'}]}));setNotice('Service logged for today. You can remove an accidental entry in Service history.');}
  const available=MAINTENANCE_PRESETS.filter(p=>!isPresetInstalled(p,items));
  const count=picks.filter(k=>available.some(p=>p.key===k)).length;
@@ -231,6 +245,7 @@ function MaintenanceView({items,projects,change}:{items:MaintenanceItem[];projec
  function info(m:MaintenanceItem){const d=dueMaintenance(m,today());return d.due?{label:'Due',tone:'red'}:d.soon?{label:'Soon',tone:'amber'}:!d.dueDate&&d.dueHours===null?{label:'Set first date',tone:'neutral'}:{label:'Scheduled',tone:'green'};}
  function rank(m:MaintenanceItem){const v=info(m).label;return v==='Due'?0:v==='Soon'?1:v==='Set first date'?2:3;}
  const sorted=[...items].sort((a,b)=>rank(a)-rank(b)||(dueMaintenance(a,today()).dueDate||'9999').localeCompare(dueMaintenance(b,today()).dueDate||'9999')||a.title.localeCompare(b.title));
+ if(showEquipment)return <EquipmentInventory key={equipmentFocus||'all'} items={equipment} maintenance={items} change={changeEquipment} unlink={unlinkEquipment} initialSelected={equipmentFocus||undefined} onBack={()=>{setShowEquipment(false);setEquipmentFocus('');}}/>;
  if(item){const due=dueMaintenance(item,today()),state=info(item);return <div>
   <button className="back-link" onClick={()=>{setSelected(null);setNotice('');}}>← All maintenance</button>
   <div className="page-heading"><div><h1>{item.title}</h1><p>Track real maintenance, without invented due dates.</p></div><div className="action-line"><button className="button primary" onClick={()=>markDone(item.id)}>✓ Done today</button><button className="button danger-outline" onClick={()=>{if(confirm(`Delete “${item.title}” and its maintenance history?`)){change(rows=>rows.filter(x=>x.id!==item.id));setSelected(null);}}}>Delete</button></div></div>
@@ -238,8 +253,10 @@ function MaintenanceView({items,projects,change}:{items:MaintenanceItem[];projec
   <div className="two-column"><section className="panel"><h2>Maintenance schedule</h2><div className="form-grid">
   <TextField label="Item / service"><input value={item.title} onChange={e=>patch(item.id,x=>({...x,title:e.target.value}))}/></TextField>
   <TextField label="Equipment / area"><input value={item.asset} onChange={e=>patch(item.id,x=>({...x,asset:e.target.value}))}/></TextField>
-  <TextField label="Equipment model (optional)"><input value={item.modelNumber||""} placeholder="Model number from appliance label" onChange={e=>patch(item.id,x=>({...x,modelNumber:e.target.value}))}/></TextField>
+  <TextField label="Standalone model number (optional)"><input value={item.modelNumber||""} placeholder="Model number from appliance label" onChange={e=>patch(item.id,x=>({...x,modelNumber:e.target.value}))}/></TextField>
   <TextField label="Category"><Select value={item.category} onChange={v=>patch(item.id,x=>({...x,category:v as MaintenanceItem['category']}))} options={CATEGORIES}/></TextField>
+  <TextField label="Linked equipment (optional)"><select value={item.equipmentId||''} onChange={e=>patch(item.id,x=>({...x,equipmentId:e.target.value}))}><option value="">No linked equipment</option>{equipment.map(e=><option key={e.id} value={e.id}>{e.name||'Unnamed equipment'}{e.model?' · '+e.model:''}</option>)}</select></TextField>
+  {item.equipmentId&&<div className="equipment-context"><button className="small-btn" onClick={()=>{setEquipmentFocus(item.equipmentId);setShowEquipment(true);}}>View equipment & label photos →</button></div>}
   <TextField label="Linked project (optional)"><select value={item.projectId} onChange={e=>patch(item.id,x=>({...x,projectId:e.target.value}))}><option value="">None</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></TextField>
   <TextField label="Repeat every N calendar months" tip="1 = monthly · 4 = every four months · 12 = annually"><input type="number" min="0" max="120" value={item.intervalMonths??0} onChange={e=>patch(item.id,x=>({...x,intervalMonths:Math.min(120,num(e.target.value)),intervalDays:num(e.target.value)>0?0:x.intervalDays}))}/></TextField>
   <TextField label="Or repeat every N days"><input type="number" min="0" value={item.intervalDays} onChange={e=>patch(item.id,x=>({...x,intervalDays:num(e.target.value),intervalMonths:num(e.target.value)>0?0:x.intervalMonths}))}/></TextField>
@@ -250,18 +267,18 @@ function MaintenanceView({items,projects,change}:{items:MaintenanceItem[];projec
   <TextField label="Instructions / notes"><textarea value={item.notes} rows={5} onChange={e=>patch(item.id,x=>({...x,notes:e.target.value}))}/></TextField>
   </div></section><div className="stack">
   <section className="panel"><h2>Next service</h2><div className="due-block"><Chip tone={state.tone}>{state.label}</Chip><h3>{due.dueDate?shortDate(due.dueDate):'No date scheduled yet'}</h3><p>{due.dueHours===null?'No usage interval':'Due at usage: '+due.dueHours}</p><p className="subtle">Enter the first due date or log the real last service date below. Following a completed service, recurrence counts from that completion date.</p></div></section>
-  <MaintenancePartsEditor key={item.id} item={item} change={parts=>patch(item.id,x=>({...x,supplies:parts}))}/>
+  <MaintenancePartsEditor key={item.id} item={item} change={parts=>patch(item.id,x=>({...x,supplies:parts}))} restock={(partId,count)=>recordRestock(item.id,partId,count)}/>
   <section className="panel"><h2>Service history</h2><EntryRows<ServiceEntry> items={item.entries} onChange={rows=>patch(item.id,x=>({...x,entries:rows}))} addLabel="Log completed service" empty={()=>({id:uid(),date:today(),hours:item.currentHours,costCents:0,notes:''})} fields={[{key:'date',label:'Service date',kind:'date'},{key:'hours',label:'Usage at service',kind:'number'},{key:'costCents',label:'Paid',kind:'money'},{key:'notes',label:'Work done',wide:true}]}/></section>
   </div></div></div>;}
  return <div>
-  <div className="page-heading"><div><h1>Stay ahead of maintenance.</h1><p>Simple household routines and reminders, stored on this device.</p></div><div className="action-line"><button className="button secondary" onClick={()=>setShowPresets(!showPresets)}>{showPresets?'Close suggestions':'+ Household checklist'}</button><button className="button primary" onClick={add}>+ Custom task</button></div></div>
+  <div className="page-heading"><div><h1>Stay ahead of maintenance.</h1><p>Simple household routines and reminders, stored on this device.</p></div><div className="action-line"><button className="button secondary" onClick={()=>{setEquipmentFocus('');setShowEquipment(true);}}>▣ Equipment ({equipment.length})</button><button className="button secondary" onClick={()=>setShowPresets(!showPresets)}>{showPresets?'Close suggestions':'+ Household checklist'}</button><button className="button primary" onClick={add}>+ Custom task</button></div></div>
   {notice&&<div className="maintenance-notice" role="status">{notice} <button onClick={()=>setNotice('')}>Dismiss</button></div>}
   <div className="maintenance-summary"><span><strong>{items.filter(m=>dueMaintenance(m,today()).due).length}</strong> due now</span><span><strong>{items.filter(m=>dueMaintenance(m,today()).soon).length}</strong> coming up</span><span><strong>{items.filter(m=>{const d=dueMaintenance(m,today());return !d.dueDate&&d.dueHours===null;}).length}</strong> need first date</span></div>
   {showPresets&&<section className="panel maintenance-templates"><h2>Choose household routines</h2><p className="subtle">All frequencies can be edited. Adding does not imply equipment ownership, completed work, or a due date. Existing records won't be replaced.</p>
    {(['Everyday home','Home equipment & outdoors','Only if installed'] as const).map(group=><div className="preset-group" key={group}><h3>{group}</h3><div className="preset-list">{MAINTENANCE_PRESETS.filter(p=>p.group===group).map(p=>{const installed=isPresetInstalled(p,items);return <label key={p.key} className={`preset-row ${installed?'already-added':''}`}><input type="checkbox" disabled={installed} checked={installed||picks.includes(p.key)} onChange={e=>setPicks(old=>e.target.checked?[...old,p.key]:old.filter(k=>k!==p.key))}/><span><strong>{p.title}</strong><small>{p.asset} · {p.months===1?'Monthly':`Every ${p.months} months`}{installed?' · Already added':''}</small></span></label>})}</div></div>)}
    <div className="preset-actions"><button className="button primary" disabled={count===0} onClick={installPresets}>Add {count} selected item{count===1?'':'s'}</button><span>Only selected tasks are stored, and no prior service is assumed.</span></div>
   </section>}
-  <MaintenanceShoppingPanel items={items} open={id=>{setNotice("");setSelected(id);}}/>
+  <MaintenanceShoppingPanel items={items} restock={recordRestock} open={id=>{setNotice("");setSelected(id);}}/>
   {sorted.length?<div className="maintenance-list">{sorted.map(m=>{const d=dueMaintenance(m,today()),st=info(m);return <div key={m.id} className="maintenance-row"><button className="maintenance-card" onClick={()=>{setNotice('');setSelected(m.id);}}><span className="category-icon">{ICONS[m.category]}</span><span className="maintenance-title"><strong>{m.title}</strong><small>{m.asset||m.category} · {(m.intervalMonths??0)>0?`Every ${m.intervalMonths} mo`:m.intervalDays>0?`Every ${m.intervalDays} days`:'Usage/custom'}</small></span><span className="maintenance-when">{d.dueDate?shortDate(d.dueDate):'Set first date'}<Chip tone={st.tone}>{st.label}</Chip></span><span>→</span></button><button className="maintenance-complete" onClick={()=>markDone(m.id)}>✓ Done today</button></div>})}</div>:<EmptyState title="Start your home checklist" body="Choose suggested routines, then enter real due dates or service history. No sample maintenance is automatically imported." action="Choose household checklist" onClick={()=>setShowPresets(true)}/>}
   {!showPresets&&available.length>0&&items.length>0&&<button className="add-more-maintenance" onClick={()=>setShowPresets(true)}>+ Add more suggested routines</button>}
  </div>;

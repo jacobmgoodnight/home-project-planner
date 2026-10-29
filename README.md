@@ -125,3 +125,14 @@ See [QA and browser acceptance checklist](docs/QA.md) and [data model for future
 Open Maintenance → a task → Replacement parts to save the equipment model, filter dimensions, cartridge part number/SKU, quantity per service, on-hand stock, preferred store, price and product URL. A shopping panel lists due/soon shortages, with an option to include later tasks and copy a list. Amounts are user-entered planning estimates, never actual project spending or commitments. No purchases are made.
 
 Database snapshots now use schema version 2. Existing version-1 browser data and JSON backups are migrated in place on load/import; project information, service histories, and expenses are preserved. The IndexedDB database name is unchanged. Export a backup before major edits.
+
+
+## Equipment inventory & restock (v3)
+
+Under **Maintenance → Equipment**, save the location, manufacturer, model/serial, purchase/warranty dates and up to five compressed label photos for each appliance. The same equipment entry can be linked to multiple maintenance tasks. Equipment is not prepopulated as if owned.
+
+Filter/service tasks keep their previous free-text equipment description and optional standalone model number. Link a task to an equipment entry in its schedule editor to reuse label photos and exact model details.
+
+In **Replacement parts**, choose **Record restock +N** to confirm that N additional items are physically on hand. This only changes the inventory count; no expense, quote, purchase or bank transaction is generated. A completed service still does not automatically reduce inventory.
+
+Schema v3 migrates valid v1 and v2 browser snapshots and JSON backups without dropping parts, costs, history, or dates. Equipment photos are stored locally and embedded in exported JSON (therefore backups can be larger). Export a backup before changing browsers or clearing site data.

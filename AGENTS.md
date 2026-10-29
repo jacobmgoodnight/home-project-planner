@@ -35,3 +35,11 @@ Future inventory import may use a mapping `{sourceApp, sourceId, projectId, mate
 - Database.version is now 2. Use the pure upgradeSnapshot function in src/maintenance-support.mjs to migrate valid v1 snapshots; validate after upgrade before any save. Preserve the IndexedDB name and key so prior browser data remains available.
 - Maintenance supplies record manually entered part identifiers, size, quantity, stock, store, URL and optional price; never invent compatible products or amounts. They are NOT actual expense or purchase records.
 - The maintenance shopping view uses due/soon scheduling and stock shortages, with an optional all-tasks filter. No automatic buying or deductions from on-hand stock.
+
+
+## Equipment and restock (v3)
+
+- Version 3 adds equipment[] and maintenance.equipmentId. Migrate v1→v2→v3 or v2→v3 via upgradeSnapshot. Preserve past service history, inventory and finance fields. Reject unsupported or damaged snapshots.
+- Equipment label photos stay in IndexedDB and JSON exports, compressed using attachmentFromFile. Never upload to external servers and never seed real appliance identifiers or personal photos in the repository.
+- Deleting equipment must unlink matching maintenance tasks, not erase those tasks. Restock confirmations update only onHand via stockAfterRestock, never create spending or auto-consume stock.
+- Keep four navigation tabs; equipment lives in Maintenance. Mobile usability and simple workflows are essential.
