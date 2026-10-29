@@ -32,7 +32,7 @@ test('low stock only warns for explicitly configured reorder threshold',()=>{
 });
 
 test('usage-due warning is shown even when date is beyond the agenda horizon',()=>{
- const item=maintenance({firstDueDate:'2027-04-01',intervalHours:500,currentHours:1500,entries:[{id:'prev',date:'2026-09-01',hours:1000,costCents:0,notes:''}]});
+ const item=maintenance({intervalMonths:12,firstDueDate:'2027-04-01',intervalHours:500,currentHours:1500,entries:[{id:'prev',date:'2026-09-01',hours:1000,costCents:0,notes:''}]});
  const a=maintenanceAgenda([item],'2026-10-29',30);
  assert.equal(a.usageDue.length,1);
 });
