@@ -19,6 +19,7 @@ import { createSaveQueue } from './save-queue.mjs';
 import { isUnderBudgetRemaining,wouldCreateDependencyCycle } from './project-filters.mjs';
 import type { SaveQueue } from './save-queue.mjs';
 import { GuidedSetup } from './GuidedSetup';
+import type { SetupRoutine } from './GuidedSetup';
 import { QuickCapture } from './QuickCapture';
 import type { QuickCaptureRequest } from './QuickCapture';
 import { HomeReference } from './HomeReference';
@@ -159,14 +160,27 @@ export default function App(){
       navigate('overview');
     }
   }
-  function installGuided(names:string[],keys:string[]){
+  function installGuided(names:string[],routines:SetupRoutine[]){
     patch(d=>{
       const existing=new Set(d.equipment.map(e=>e.name.trim().toLocaleLowerCase('en-US')));
       const equipmentAdded=names.filter(n=>!existing.has(n.trim().toLocaleLowerCase('en-US'))).map(name=>({...newEquipment(),name}));
-      const maintenanceAdded=MAINTENANCE_PRESETS.filter(p=>keys.includes(p.key)&&!isPresetInstalled(p,d.maintenance)).map(createFromPreset);
-      return {...d,equipment:[...d.equipment,...equipmentAdded],maintenance:[...d.maintenance,...maintenanceAdded]};
+      const allEquipment=[...d.equipment,...equipmentAdded];
+      const maintenanceAdded=routines.flatMap(choice=>{
+        const preset=MAINTENANCE_PRESETS.find(p=>p.key===choice.key);
+        if(!preset||isPresetInstalled(preset,d.maintenance))return [];
+        const equipmentId=allEquipment.find(e=>e.name.trim().toLocaleLowerCase('en-US')===choice.equipmentName.trim().toLocaleLowerCase('en-US'))?.id||'';
+        const item=createFromPreset(preset);
+        item.firstDueDate=choice.firstDueDate;
+        item.intervalMonths=choice.intervalMonths;
+        item.equipmentId=equipmentId;
+        if(choice.partNumber||choice.partSize)item.supplies.push({id:uid(),name:choice.partNumber||'Replacement part',
+         size:choice.partSize,partNumber:choice.partNumber,quantity:1,onHand:0,unitCents:0,
+         store:'',url:'',notes:''});
+        return [item];
+      });
+      return {...d,equipment:allEquipment,maintenance:[...d.maintenance,...maintenanceAdded]};
     });
-    setShowSetup(false);statusNotice('Selected equipment and maintenance routines added. Set real first due dates in Maintenance.');
+    setShowSetup(false);statusNotice('Selected equipment and maintenance routines added. Any unspecified due dates remain unscheduled.');
   }
   function edit(id:string){setSelected(id);setEditorTab('plan');setPage('projects');window.scrollTo(0,0);}
   function create(){const p=newProject();p.name='Untitled project';patch(d=>({...d,projects:[p,...d.projects]}));edit(p.id);}

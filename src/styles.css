@@ -239,3 +239,10 @@
 .home-search-results button small{flex:1;color:#769183;font-size:.71rem}
 .home-search-results button span{font-weight:700;font-size:.72rem}
 @media(max-width:375px){.top-search-btn{padding:9px;font-size:.76rem}.top-actions{gap:4px}}
+
+.setup-routine{border-bottom:1px solid #e2ece5}
+.setup-routine .setup-choice{border-bottom:0}
+.setup-routine-options{margin:0 0 10px 27px;padding:10px;border-radius:9px;background:#f4f9f5}
+.setup-routine-options summary{cursor:pointer;color:#16684e;font-size:.79rem;font-weight:750;margin-bottom:8px}
+.setup-routine-options .field{display:block;margin:10px 0}
+.setup-routine-options input,.setup-routine-options select{width:100%;max-width:100%;min-width:0}
