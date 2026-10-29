@@ -184,3 +184,10 @@ The household owner can list members and revoke future cloud access. This does n
 On devices with notification support, enabling notifications also permits one brief reminder per day when opening the app, if upcoming maintenance/warranty items exist. This is not push while closed.
 
 On mobile, Equipment and service-completion screens offer separate **Take photo** and **Choose existing photo/PDF** controls, rather than forcing the camera.
+
+
+### Shared backend connection (October 29, 2026)
+
+The owner approved provisioning Home Project Planner inside their **existing general Supabase project**, because their free organization had reached the two-project limit. Migration `hpp_private_household_sync_20261029` was successfully applied to `rwqclcpmtuebxndadkxv`, creating only `public.hpp_*` objects. The app now embeds the public Supabase project URL and **publishable** key; no private credential or service-role key is shipped. Existing `gw_*`, `hdb_*`, and other application objects were left intact. Users still explicitly sign up/sign in and initialize or join a household under **Backup & data**; no existing IndexedDB records are auto-uploaded at first sign-in.
+
+Home snapshots are restricted to authenticated household members; the browser has **no direct update privileges**. The `hpp_cas_snapshot` function checks membership, schema shape, size, and expected revision before committing. Invitations are one-use and seven days long; owner-only member management can revoke future cloud access. Backups remain advised. Supabase Auth's configured email confirmation and allowed redirect URLs can affect account onboarding.

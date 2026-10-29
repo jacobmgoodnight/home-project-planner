@@ -19,6 +19,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
  const [lastSynced,setLastSynced]=useState('');
  const [enabled,setEnabled]=useState(()=>{try{return localStorage.getItem('hpp-auto-sync')==='yes';}catch{return false;}});
  const stateRef=useRef(data);stateRef.current=data;
+ const replaceRef=useRef(onReplace);replaceRef.current=onReplace;
  const working=useRef(false);
  const ready=!!configured&&!!user&&!!home;
  const refreshHomes=useCallback(async()=>{
@@ -52,13 +53,13 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
    }
    if(remote.revision>anchor.revision&&localHash===anchor.hash){
     if(!remote.document||!validateBackup(remote.document))throw new Error('Cloud data failed validation. Your local records are unchanged.');
-    onReplace(remote.document);bindLocalHome(home);setAnchor(home,remote.revision,await snapshotHash(remote.document));
+    replaceRef.current(remote.document);bindLocalHome(home);setAnchor(home,remote.revision,await snapshotHash(remote.document));
     setLastSynced(new Date().toLocaleString());if(!isAutomatic)setStatus('Cloud changes downloaded.');return;
    }
    setConflict(true);setStatus('Both this device and the cloud have changed. Nothing was overwritten. Export a backup and review the versions below.');
   }catch(e){setStatus(e instanceof Error?e.message:'Sync could not complete. Local data is untouched.');}
   finally{working.current=false;if(!isAutomatic)setBusy(false);}
- },[home,ready,onReplace]);
+ },[home,ready]);
  useEffect(()=>{
   if(!enabled||!ready)return;
   const check=()=>{if(document.visibilityState==='visible'&&navigator.onLine)void synchronize(true);};
@@ -102,7 +103,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
  async function useCloud(){await run(async()=>{
   const remote=await refresh();if(!remote?.document||!validateBackup(remote.document)){setStatus('No valid cloud copy is available.');return;}
   if(!window.confirm('Replace all local data on this device with this household cloud copy? Export a backup first.'))return;
-  onReplace(remote.document);setAnchor(home,remote.revision,await snapshotHash(remote.document));
+  replaceRef.current(remote.document);bindLocalHome(home);setAnchor(home,remote.revision,await snapshotHash(remote.document));
   setConflict(false);setStatus('Cloud copy restored; ready to sync.');
  });}
  async function overrideCloud(){await run(async()=>{
@@ -119,7 +120,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
   setStatus(next?'Auto-sync enabled for this browser while the app is open or reconnects.':'Auto-sync paused; local records are still saved.');
  }
  return <section className="panel household-sync">
-  <div className="parts-heading"><div><h2>Optional household sync</h2><p>One private shared household across computer and phone, with offline editing and conflict checks.</p></div>
+  <div className="parts-heading"><div><h2>Optional household sync</h2><p>Backend connected. Sign in to share this home between computer and phone. Offline editing and conflict checks stay enabled.</p></div>
    <span className="sync-health">{ready?(enabled?'Auto-sync on':'Connected · manual sync'):'Not connected'}</span></div>
   {!configured?<div className="cloud-config"><p>A dedicated Supabase project is required. Existing local projects stay untouched until you connect it. Never paste a secret/service-role key.</p>
    <details><summary>Configure dedicated Supabase backend</summary>
@@ -128,7 +129,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
     <button className="button secondary" onClick={configure}>Save cloud connection</button>
     <p className="subtle">The Home Project Planner SQL schema and row-level security rules must already be installed in this dedicated project.</p>
    </details></div>:
-   !user?<div className="cloud-auth"><p>Use the same account on your computer and phone. Email confirmation may be required; existing browser data remains private and offline.</p>
+   !user?<div className="cloud-auth"><p>Use the same email and password on Windows and your phone. Creating an account may require email confirmation; your current local records remain untouched.</p>
     <div className="form-grid"><label className="field"><span>Email</span><input type="email" value={email} autoComplete="username" onChange={e=>setEmail(e.target.value)}/></label>
     <label className="field"><span>Password</span><input type="password" value={password} autoComplete="current-password" onChange={e=>setPassword(e.target.value)}/></label></div>
     <div className="action-line"><button className="button primary" disabled={busy||!email||!password} onClick={signin}>Sign in</button><button className="button secondary" disabled={busy||!email||password.length<10} onClick={signup}>Create account</button><button className="small-btn" onClick={()=>{forgetCloud();setConfigured(false);}}>Change backend</button></div>

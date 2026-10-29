@@ -6,11 +6,17 @@ type Session={access_token:string;refresh_token:string;expires_at:number;user:{i
 type CloudSettings={url:string;key:string};
 
 const CONF='hpp-supabase-config', SESSION='hpp-supabase-session';
+// Public values only. The publishable key is safe to ship in the browser;
+ // access is restricted by Supabase Auth, grants, and row-level security.
+const DEFAULT_CLOUD:CloudSettings={
+ url:'https://rwqclcpmtuebxndadkxv.supabase.co',
+ key:'sb_publishable_n9bHU-XwYaLOHmC_dh3UEw_aEGuoqBj'
+};
 function read<T>(key:string):T|null{try{return JSON.parse(localStorage.getItem(key)||'null') as T;}catch{return null;}}
 function write(key:string,value:unknown){localStorage.setItem(key,JSON.stringify(value));}
 export function cloudSettings():CloudSettings|null{
- const s=read<CloudSettings>(CONF);
- if(!s||!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(s.url)||!s.key.startsWith('sb_publishable_'))return null;
+ const s=read<CloudSettings>(CONF)||DEFAULT_CLOUD;
+ if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(s.url)||!/^sb_publishable_[A-Za-z0-9_-]+$/.test(s.key))return null;
  return s;
 }
 export function configureCloud(url:string,key:string){

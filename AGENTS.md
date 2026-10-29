@@ -80,3 +80,8 @@ Future inventory import may use a mapping `{sourceApp, sourceId, projectId, mate
 - Opt-in QR uses an external API on click; only a public app URL and opaque equipment ID are transferred. Model numbers, names and serials must never be included in the QR service request.
 
 - Cloud data must be bound to the exact household ID, signed-in user, and Supabase project URL before auto-sync begins. Switching households pauses auto-sync; never upload data from a prior household by reusing an old revision anchor.
+
+
+- **Deployed backend:** `rwqclcpmtuebxndadkxv` (shared with unrelated applications by explicit owner approval). Only modify `hpp_*` objects. Publishable key is public; never commit private credentials. Direct UPDATE on snapshots is denied; writes solely through checked `hpp_cas_snapshot`.
+- The production cloud URL/key are preconfigured as safe public browser values. No migration or account creation occurs during web app loading; user signs in and explicitly initializes the household.
+- Avoid unstable React callback references in the polling effect and always bind cloud-to-device after an explicit restore before offering automatic sync.

@@ -47,3 +47,8 @@ Run `npm run check`, verify migration of v1/v2/v3 backups, test on mobile, inspe
 - [ ] For future unattended reminders: implement a permissioned push/subscription server and explicit opt-in, rather than pretending browser notifications work when the PWA is closed.
 
 - [x] Add explicit per-household, per-user device binding to prevent cross-household auto-uploads.
+
+
+- [x] Owner-approved reuse of general free Supabase backend with separate `hpp_*` tables and no modifications to other apps.
+- [x] Deploy hardened household schema and project publishable-key bootstrap without service credentials.
+- [ ] Finish user sign-in / email confirmation in both browsers; create a household, upload a verified backup, and test actual two-device round trip including conflicting offline edits.
