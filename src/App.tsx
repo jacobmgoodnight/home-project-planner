@@ -8,6 +8,10 @@ import { demoData } from './demo';
 import { MAINTENANCE_PRESETS,createFromPreset,isPresetInstalled } from './maintenance-presets';
 import { MaintenancePartsEditor,MaintenanceShoppingPanel } from './MaintenanceParts';
 import { EquipmentInventory } from './EquipmentInventory';
+import { MaintenanceCompletion } from './MaintenanceCompletion';
+import { MaintenanceAgenda } from './MaintenanceAgenda';
+import type { CompletionDetails } from './maintenance-enhancements.mjs';
+import { completeService } from './maintenance-enhancements.mjs';
 import type { EquipmentItem } from './types';
 import { stockAfterRestock } from './maintenance-support.mjs';
 
@@ -222,6 +226,8 @@ function ProjectEditor({project:p,allProjects,tab,setTab,patch,back,remove,alert
 function MaintenanceView({items,projects,equipment,change,changeEquipment,unlinkEquipment}:{items:MaintenanceItem[];projects:Project[];equipment:EquipmentItem[];change:(fn:(items:MaintenanceItem[])=>MaintenanceItem[])=>void;changeEquipment:(fn:(items:EquipmentItem[])=>EquipmentItem[])=>void;unlinkEquipment:(id:string)=>void}){
  const [selected,setSelected]=useState<string|null>(null);
  const [showPresets,setShowPresets]=useState(false);
+ const [presetMode,setPresetMode]=useState<'home'|'seasonal'>('home');
+ const [completing,setCompleting]=useState<string|null>(null);
  const [showEquipment,setShowEquipment]=useState(false);
  const [equipmentFocus,setEquipmentFocus]=useState('');
  const [picks,setPicks]=useState<string[]>(()=>MAINTENANCE_PRESETS.filter(p=>p.defaultSelected).map(p=>p.key));
@@ -238,14 +244,28 @@ function MaintenanceView({items,projects,equipment,change,changeEquipment,unlink
     setNotice('Inventory updated. Add any actual spending separately in a project.');
   }catch(e){setNotice(e instanceof Error?e.message:'Could not update stock.');}
  }
- function markDone(id:string){patch(id,m=>({...m,entries:[...m.entries,{id:uid(),date:today(),hours:m.currentHours,costCents:0,notes:'Completed'}]}));setNotice('Service logged for today. You can remove an accidental entry in Service history.');}
+ function markDone(id:string){setNotice('');setCompleting(id);}
+ function finishCompletion(details:CompletionDetails){
+  const id=completing;
+  if(!id)return;
+  change(rows=>rows.map(m=>m.id===id?completeService(m,details):m));
+  setCompleting(null);setNotice('Completed service saved. The next due date has been recalculated from the logged date.');
+ }
+ function openPresets(mode:'home'|'seasonal'){
+  setPresetMode(mode);setShowPresets(true);
+  setPicks(mode==='home'?MAINTENANCE_PRESETS.filter(p=>p.defaultSelected).map(p=>p.key):[]);
+ }
  const available=MAINTENANCE_PRESETS.filter(p=>!isPresetInstalled(p,items));
- const count=picks.filter(k=>available.some(p=>p.key===k)).length;
- function installPresets(){const newItems=available.filter(p=>picks.includes(p.key)).map(createFromPreset);if(!newItems.length)return;change(rows=>[...rows,...newItems]);setShowPresets(false);setPicks([]);setNotice(`Added ${newItems.length} suggested routines. Set a first due date or log the real last service for each.`);}
+ const visibleGroups=presetMode==='seasonal'?['Spring','Summer','Fall','Winter']:['Everyday home','Home equipment & outdoors','Only if installed'];
+ const count=picks.filter(k=>available.some(p=>p.key===k&&visibleGroups.includes(p.group))).length;
+ function installPresets(){const newItems=available.filter(p=>picks.includes(p.key)&&visibleGroups.includes(p.group)).map(createFromPreset);if(!newItems.length)return;change(rows=>[...rows,...newItems]);setShowPresets(false);setPicks([]);setNotice(`Added ${newItems.length} suggested routines. Set a first due date or log the real last service for each.`);}
  function info(m:MaintenanceItem){const d=dueMaintenance(m,today());return d.due?{label:'Due',tone:'red'}:d.soon?{label:'Soon',tone:'amber'}:!d.dueDate&&d.dueHours===null?{label:'Set first date',tone:'neutral'}:{label:'Scheduled',tone:'green'};}
  function rank(m:MaintenanceItem){const v=info(m).label;return v==='Due'?0:v==='Soon'?1:v==='Set first date'?2:3;}
  const sorted=[...items].sort((a,b)=>rank(a)-rank(b)||(dueMaintenance(a,today()).dueDate||'9999').localeCompare(dueMaintenance(b,today()).dueDate||'9999')||a.title.localeCompare(b.title));
  if(showEquipment)return <EquipmentInventory key={equipmentFocus||'all'} items={equipment} maintenance={items} change={changeEquipment} unlink={unlinkEquipment} initialSelected={equipmentFocus||undefined} onBack={()=>{setShowEquipment(false);setEquipmentFocus('');}}/>;
+ if(completing){const selectedItem=items.find(m=>m.id===completing);
+  if(selectedItem)return <MaintenanceCompletion key={completing} item={selectedItem} onSave={finishCompletion} onCancel={()=>setCompleting(null)}/>;
+ }
  if(item){const due=dueMaintenance(item,today()),state=info(item);return <div>
   <button className="back-link" onClick={()=>{setSelected(null);setNotice('');}}>← All maintenance</button>
   <div className="page-heading"><div><h1>{item.title}</h1><p>Track real maintenance, without invented due dates.</p></div><div className="action-line"><button className="button primary" onClick={()=>markDone(item.id)}>✓ Done today</button><button className="button danger-outline" onClick={()=>{if(confirm(`Delete “${item.title}” and its maintenance history?`)){change(rows=>rows.filter(x=>x.id!==item.id));setSelected(null);}}}>Delete</button></div></div>
@@ -268,18 +288,21 @@ function MaintenanceView({items,projects,equipment,change,changeEquipment,unlink
   </div></section><div className="stack">
   <section className="panel"><h2>Next service</h2><div className="due-block"><Chip tone={state.tone}>{state.label}</Chip><h3>{due.dueDate?shortDate(due.dueDate):'No date scheduled yet'}</h3><p>{due.dueHours===null?'No usage interval':'Due at usage: '+due.dueHours}</p><p className="subtle">Enter the first due date or log the real last service date below. Following a completed service, recurrence counts from that completion date.</p></div></section>
   <MaintenancePartsEditor key={item.id} item={item} change={parts=>patch(item.id,x=>({...x,supplies:parts}))} restock={(partId,count)=>recordRestock(item.id,partId,count)}/>
-  <section className="panel"><h2>Service history</h2><EntryRows<ServiceEntry> items={item.entries} onChange={rows=>patch(item.id,x=>({...x,entries:rows}))} addLabel="Log completed service" empty={()=>({id:uid(),date:today(),hours:item.currentHours,costCents:0,notes:''})} fields={[{key:'date',label:'Service date',kind:'date'},{key:'hours',label:'Usage at service',kind:'number'},{key:'costCents',label:'Paid',kind:'money'},{key:'notes',label:'Work done',wide:true}]}/></section>
+  <section className="panel"><h2>Service history</h2><p className="subtle">Use “Done today” above for guided logging with a receipt and optional part deductions. Manual entries stay available for older service records.</p><EntryRows<ServiceEntry> items={item.entries} onChange={rows=>patch(item.id,x=>({...x,entries:rows}))} addLabel="Log completed service" empty={()=>({id:uid(),date:today(),hours:item.currentHours,costCents:0,notes:''})} fields={[{key:'date',label:'Service date',kind:'date'},{key:'hours',label:'Usage at service',kind:'number'},{key:'costCents',label:'Paid',kind:'money'},{key:'notes',label:'Work done',wide:true}]}/>
+  {item.entries.some(e=>e.receipt||(e.usedSupplies?.length??0)>0)&&<div className="service-extra-history"><h3>Recorded receipts & supplies</h3>{item.entries.filter(e=>e.receipt||(e.usedSupplies?.length??0)>0).map(e=><div className="service-extra-row" key={e.id}><strong>{e.date}</strong><span>{e.usedSupplies?.map(u=>(item.supplies.find(p=>p.id===u.partId)?.name||'Previously saved part')+' × '+u.quantity).join(', ')||'No parts specified'}{e.stockDeducted?' · stock adjusted':''}</span>{e.receipt&&<a download={e.receipt.name} href={e.receipt.dataUrl}>Receipt: {e.receipt.name} ↧</a>}</div>)}</div>}
+  </section>
   </div></div></div>;}
  return <div>
-  <div className="page-heading"><div><h1>Stay ahead of maintenance.</h1><p>Simple household routines and reminders, stored on this device.</p></div><div className="action-line"><button className="button secondary" onClick={()=>{setEquipmentFocus('');setShowEquipment(true);}}>▣ Equipment ({equipment.length})</button><button className="button secondary" onClick={()=>setShowPresets(!showPresets)}>{showPresets?'Close suggestions':'+ Household checklist'}</button><button className="button primary" onClick={add}>+ Custom task</button></div></div>
+  <div className="page-heading"><div><h1>Stay ahead of maintenance.</h1><p>Simple household routines and reminders, stored on this device.</p></div><div className="action-line"><button className="button secondary" onClick={()=>{setEquipmentFocus('');setShowEquipment(true);}}>▣ Equipment ({equipment.length})</button><button className="button secondary" onClick={()=>showPresets&&presetMode==='home'?setShowPresets(false):openPresets('home')}>{showPresets&&presetMode==='home'?'Close suggestions':'+ Household checklist'}</button><button className="button primary" onClick={add}>+ Custom task</button></div></div>
   {notice&&<div className="maintenance-notice" role="status">{notice} <button onClick={()=>setNotice('')}>Dismiss</button></div>}
   <div className="maintenance-summary"><span><strong>{items.filter(m=>dueMaintenance(m,today()).due).length}</strong> due now</span><span><strong>{items.filter(m=>dueMaintenance(m,today()).soon).length}</strong> coming up</span><span><strong>{items.filter(m=>{const d=dueMaintenance(m,today());return !d.dueDate&&d.dueHours===null;}).length}</strong> need first date</span></div>
-  {showPresets&&<section className="panel maintenance-templates"><h2>Choose household routines</h2><p className="subtle">All frequencies can be edited. Adding does not imply equipment ownership, completed work, or a due date. Existing records won't be replaced.</p>
-   {(['Everyday home','Home equipment & outdoors','Only if installed'] as const).map(group=><div className="preset-group" key={group}><h3>{group}</h3><div className="preset-list">{MAINTENANCE_PRESETS.filter(p=>p.group===group).map(p=>{const installed=isPresetInstalled(p,items);return <label key={p.key} className={`preset-row ${installed?'already-added':''}`}><input type="checkbox" disabled={installed} checked={installed||picks.includes(p.key)} onChange={e=>setPicks(old=>e.target.checked?[...old,p.key]:old.filter(k=>k!==p.key))}/><span><strong>{p.title}</strong><small>{p.asset} · {p.months===1?'Monthly':`Every ${p.months} months`}{installed?' · Already added':''}</small></span></label>})}</div></div>)}
+  {showPresets&&<section className="panel maintenance-templates"><h2>{presetMode==='seasonal'?'Choose seasonal home routines':'Choose household routines'}</h2><p className="subtle">All frequencies can be edited. Adding does not imply equipment ownership, completed work, or a due date. Existing records won't be replaced. For seasonal tasks, set your preferred first due date in the appropriate season.</p>
+   {visibleGroups.map(group=><div className="preset-group" key={group}><h3>{group}</h3><div className="preset-list">{MAINTENANCE_PRESETS.filter(p=>p.group===group).map(p=>{const installed=isPresetInstalled(p,items);return <label key={p.key} className={`preset-row ${installed?'already-added':''}`}><input type="checkbox" disabled={installed} checked={installed||picks.includes(p.key)} onChange={e=>setPicks(old=>e.target.checked?[...old,p.key]:old.filter(k=>k!==p.key))}/><span><strong>{p.title}</strong><small>{p.asset} · {p.months===1?'Monthly':`Every ${p.months} months`}{installed?' · Already added':''}</small></span></label>})}</div></div>)}
    <div className="preset-actions"><button className="button primary" disabled={count===0} onClick={installPresets}>Add {count} selected item{count===1?'':'s'}</button><span>Only selected tasks are stored, and no prior service is assumed.</span></div>
   </section>}
+  <MaintenanceAgenda items={items} open={id=>{setNotice('');setSelected(id);}} complete={markDone} openSeasonal={()=>openPresets('seasonal')}/>
   <MaintenanceShoppingPanel items={items} restock={recordRestock} open={id=>{setNotice("");setSelected(id);}}/>
-  {sorted.length?<div className="maintenance-list">{sorted.map(m=>{const d=dueMaintenance(m,today()),st=info(m);return <div key={m.id} className="maintenance-row"><button className="maintenance-card" onClick={()=>{setNotice('');setSelected(m.id);}}><span className="category-icon">{ICONS[m.category]}</span><span className="maintenance-title"><strong>{m.title}</strong><small>{m.asset||m.category} · {(m.intervalMonths??0)>0?`Every ${m.intervalMonths} mo`:m.intervalDays>0?`Every ${m.intervalDays} days`:'Usage/custom'}</small></span><span className="maintenance-when">{d.dueDate?shortDate(d.dueDate):'Set first date'}<Chip tone={st.tone}>{st.label}</Chip></span><span>→</span></button><button className="maintenance-complete" onClick={()=>markDone(m.id)}>✓ Done today</button></div>})}</div>:<EmptyState title="Start your home checklist" body="Choose suggested routines, then enter real due dates or service history. No sample maintenance is automatically imported." action="Choose household checklist" onClick={()=>setShowPresets(true)}/>}
-  {!showPresets&&available.length>0&&items.length>0&&<button className="add-more-maintenance" onClick={()=>setShowPresets(true)}>+ Add more suggested routines</button>}
+  {sorted.length?<div className="maintenance-list">{sorted.map(m=>{const d=dueMaintenance(m,today()),st=info(m);return <div key={m.id} className="maintenance-row"><button className="maintenance-card" onClick={()=>{setNotice('');setSelected(m.id);}}><span className="category-icon">{ICONS[m.category]}</span><span className="maintenance-title"><strong>{m.title}</strong><small>{m.asset||m.category} · {(m.intervalMonths??0)>0?`Every ${m.intervalMonths} mo`:m.intervalDays>0?`Every ${m.intervalDays} days`:'Usage/custom'}</small></span><span className="maintenance-when">{d.dueDate?shortDate(d.dueDate):'Set first date'}<Chip tone={st.tone}>{st.label}</Chip></span><span>→</span></button><button className="maintenance-complete" onClick={()=>markDone(m.id)}>✓ Done today</button></div>})}</div>:<EmptyState title="Start your home checklist" body="Choose suggested routines, then enter real due dates or service history. No sample maintenance is automatically imported." action="Choose household checklist" onClick={()=>openPresets('home')}/>}
+  {!showPresets&&available.length>0&&items.length>0&&<button className="add-more-maintenance" onClick={()=>openPresets('home')}>+ Add more suggested routines</button>}
  </div>;
 }

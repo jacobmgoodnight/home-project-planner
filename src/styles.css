@@ -44,3 +44,47 @@
 .equipment-photo small{word-break:break-word;max-width:100%;font-size:.7rem;color:#5e756a}
 .equipment-context{display:flex;align-items:end;padding-bottom:11px}
 @media(max-width:760px){.equipment-grid{grid-template-columns:1fr}.equipment-photos{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* Next 30/60 days, seasonal cards, and guided completion */
+.agenda-panels{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:14px;margin:20px 0}
+.agenda-panels .seasonal-panel{grid-column:1/-1}
+.agenda-switch{display:flex;gap:3px;background:#ebf2ee;padding:4px;border-radius:10px;white-space:nowrap}
+.agenda-switch button{border:0;background:transparent;border-radius:8px;padding:8px 10px;font-weight:750;font-size:.8rem;color:#4b7764}
+.agenda-switch button.active{background:white;color:#185947;box-shadow:0 1px 4px #0001}
+.agenda-stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.agenda-stats span{font-size:.73rem;padding:7px 10px;background:#eff4f0;border-radius:9px;color:#526f61}
+.agenda-stats strong{color:#154c3c}
+.agenda-section h3{font-size:.8rem;margin:15px 0 9px}
+.agenda-row{border-bottom:1px solid #e4eee8;padding:10px 0;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.agenda-open{text-align:left;background:transparent;border:0;padding:0;color:#183a30;min-width:0}
+.agenda-open strong{display:block;font-size:.83rem}
+.agenda-open small{display:block;color:#6a8376;margin-top:3px}
+.agenda-unscheduled{margin-top:14px;border-top:1px solid #e0e9e3;padding-top:13px;color:#527063;font-size:.77rem}
+.agenda-unscheduled summary{cursor:pointer}
+.agenda-setup{border:0;background:transparent;display:block;text-align:left;color:#16715c;padding:7px 0;font-weight:700}
+.stock-number{font-size:1.5rem;color:#216751}
+.stock-alerts{display:grid;gap:8px}
+.stock-alert{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:11px;border:1px solid #eadfb5;border-radius:10px;background:#fffdf5}
+.stock-alert strong{font-size:.81rem;color:#594b28}
+.stock-alert small{font-size:.73rem;color:#736745}
+.stock-alert span{font-size:.72rem;color:#1b6e55;font-weight:800}
+.season-pills{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.season-pills span{font-size:.73rem;padding:7px 12px;border-radius:999px;background:#eef3ef;color:#73867a;font-weight:700}
+.season-pills span.current{color:#135944;background:#d7f1e1}
+.completion-page .receipt-upload{margin-top:18px;padding-top:15px;border-top:1px solid #e5ede7}
+.completion-page .receipt-upload strong{display:block;font-size:.83rem}
+.receipt-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0;color:#526e61;font-size:.78rem}
+.used-part-row{display:flex;align-items:center;justify-content:space-between;gap:14px;border-bottom:1px solid #e1ebe5;padding:10px 0}
+.used-part-row label{display:flex;gap:9px;align-items:center;flex:1;min-width:0}
+.used-part-row label span{font-size:.82rem;font-weight:700}
+.used-part-row small{display:block;color:#6b8277;margin-top:3px;font-size:.73rem;font-weight:400}
+.used-part-row input[type=number]{width:80px;min-width:65px}
+.deduct-option{display:flex;gap:10px;align-items:flex-start;margin:18px 0;font-weight:750;font-size:.81rem}
+.service-error{color:#9c2c25;font-size:.8rem}
+.service-extra-history{margin-top:17px;border-top:1px solid #dce9e0;padding-top:14px}
+.service-extra-history h3{font-size:.85rem}
+.service-extra-row{display:flex;align-items:flex-start;flex-direction:column;gap:3px;padding:9px 0;border-bottom:1px solid #e8efe9;font-size:.76rem;color:#587267}
+.service-extra-row a{color:#0d725f;font-weight:750}
+@media(max-width:900px){.agenda-panels{grid-template-columns:1fr}}
+@media(max-width:650px){.agenda-panel .parts-heading{flex-direction:column}.used-part-row{align-items:flex-start}.agenda-row .small-btn{flex-shrink:0}}

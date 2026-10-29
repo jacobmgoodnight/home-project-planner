@@ -8,18 +8,17 @@ The product goal is **finish useful household work and avoid surprise spending**
 - [x] House maintenance routines, calendar-month scheduling and service history
 - [x] Replacement part details, on-hand stock, price-aware shopping list
 - [x] Equipment inventory, label photos, maintenance links and confirmed restocking
+- [x] Guided completion with actual costs, receipts, used parts and opt-in stock deduction
+- [x] Upcoming maintenance agenda (30/60 days) and low-stock thresholds
+- [x] Opt-in spring/summer/fall/winter home care templates
 - [x] Versioned JSON export/restore, local IndexedDB, offline PWA and CI
 
 ## Next — high value, low complexity
-1. **Maintenance completion assistant.** When marking a service complete, optionally record parts used, purchase price/receipt and actual usage, with a confirmation preview. Never auto-deduct stock or guess cost.
-2. **Due-date overview.** Show next 30/60 days of household tasks, grouped by timing with a quick path to complete them and no fabricated due dates.
-3. **Consumables reorder threshold.** Optional minimum stock for HVAC/water filters; distinguish a low-stock alert from an overdue service. No shopping API required.
-4. **Find equipment fast.** Search appliances, model/part numbers, locations and service history, plus warranty-expiry summaries.
-5. **Safer mobile backup.** Make export reminders visible when a user has edited data without a recent export; keep reliable restore and attachment-size safeguards.
+1. **Find equipment fast.** Search appliances, model/part numbers, locations and service history, plus warranty-expiry summaries.
+2. **Safer mobile backup.** Make export reminders visible when a user has edited data without a recent export; keep reliable restore and attachment-size safeguards.
 
 ## Later — consider only if needed
 6. Compare multiple written repair/contractor quotes side-by-side and save vendor documents.
-7. Quick seasonal readiness checklist (HVAC spring/fall, gutters, sump pump) without doubling up with Holiday Display Blueprint wiring inventory.
 8. Explicit, reviewed import from Holiday Display Blueprint and/or existing CSV, matching duplicates by stable IDs.
 9. Optional authenticated Supabase sync for sharing across devices **only when demanded**. Must preserve local-first behavior and clear conflict resolution.
 10. Offline-friendly install and phone UX audits; print/export a one-page household maintenance sheet.

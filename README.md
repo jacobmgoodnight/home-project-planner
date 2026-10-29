@@ -136,3 +136,14 @@ Filter/service tasks keep their previous free-text equipment description and opt
 In **Replacement parts**, choose **Record restock +N** to confirm that N additional items are physically on hand. This only changes the inventory count; no expense, quote, purchase or bank transaction is generated. A completed service still does not automatically reduce inventory.
 
 Schema v3 migrates valid v1 and v2 browser snapshots and JSON backups without dropping parts, costs, history, or dates. Equipment photos are stored locally and embedded in exported JSON (therefore backups can be larger). Export a backup before changing browsers or clearing site data.
+
+
+## Guided maintenance and seasonal routines (v3, additive)
+
+**Maintenance → Upcoming maintenance** shows overdue and next-30-day tasks with a 60-day switch. Items without a real due date are shown as unscheduled, not overdue; usage-based thresholds are separate. **Done today** now opens a review flow for actual date, cost, usage, notes, receipt/photo, parts used and an explicitly optional inventory deduction. It does not purchase supplies or add maintenance spending to project financial totals.
+
+**Minimum stock alert** in each replacement-part editor is optional. Only explicitly configured thresholds create low-stock warnings; the shopping list now includes flagged shortages even when a service is months away. Price-unknown items remain price-unknown.
+
+**Seasonal home checklist** offers separate Spring/Summer/Fall/Winter suggestions suited to typical Midwestern maintenance. Suggestions are opt-in, avoid holiday-display wiring inventory and do not fabricate dates or service completions. Set a first due date yourself. Recurrence is yearly from each completed service.
+
+Service records can optionally contain a local receipt and used-part references without changing the v3 database version or invalidating older backups. Export/restore includes attached receipts; keep backups private.

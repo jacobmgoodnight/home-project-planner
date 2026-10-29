@@ -28,12 +28,13 @@ export function MaintenancePartsEditor({item,change,restock}:{item:MaintenanceIt
     {textFields.map(([key,label,placeholder])=><label className={'field'+(key==='notes'?' part-wide':'')} key={key}><span>{label}</span><input placeholder={placeholder} value={p[key]} onChange={e=>update(p.id,{[key]:e.target.value})}/></label>)}
     <label className="field"><span>Quantity per service</span><input type="number" min="1" max="9999" step="1" value={p.quantity} onChange={e=>update(p.id,{quantity:Math.min(9999,Math.max(1,Math.floor(Number(e.target.value)||1)))})}/></label>
     <label className="field"><span>Already on hand</span><input type="number" min="0" max="9999" step="1" value={p.onHand} onChange={e=>update(p.id,{onHand:Math.min(9999,Math.max(0,Math.floor(Number(e.target.value)||0)))})}/></label>
+    <label className="field"><span>Minimum stock alert (optional)</span><input type="number" min="0" max="9999" step="1" placeholder="No minimum set" value={p.minOnHand??''} onChange={e=>update(p.id,{minOnHand:e.target.value===''?undefined:Math.min(9999,Math.max(0,Math.floor(Number(e.target.value)||0)))})}/></label>
     <label className="field"><span>Estimated unit price ($)</span><Price cents={p.unitCents} change={v=>update(p.id,{unitCents:v})}/></label>
     <label className="field"><span>Preferred product link</span><ProductUrl value={p.url} change={v=>update(p.id,{url:v})}/></label>
    </div>
    <div className="part-footer"><span>{quantityToBuy(p)>0?'Need '+quantityToBuy(p)+' to restock':'Enough on hand for next service'}</span>{quantityToBuy(p)>0&&<button className="small-btn" type="button" onClick={()=>restock(p.id,quantityToBuy(p))}>Record restock +{quantityToBuy(p)}</button>}<span>{p.unitCents>0?'Estimated cost to buy: '+money(Math.round(quantityToBuy(p)*p.unitCents)):'Price not set'}</span>{/^https?:\/\//i.test(p.url)&&<a href={p.url} target="_blank" rel="noopener noreferrer">Product ↗</a>}</div>
   </div>)}
-  <p className="subtle part-footnote">Update on-hand stock manually after replacing parts. This is a shopping estimate, not an expense or a purchase.</p>
+  <p className="subtle part-footnote">Minimum stock alerts are optional and separate from maintenance due dates. Use “Record restock” after buying supplies. Nothing here creates a project expense or purchase.</p>
  </section>;
 }
 export function MaintenanceShoppingPanel({items,open,restock}:{items:MaintenanceItem[];open:(id:string)=>void;restock:(id:string,partId:string,count:number)=>void}) {
@@ -43,7 +44,7 @@ export function MaintenanceShoppingPanel({items,open,restock}:{items:Maintenance
  const missing=items.filter(m=>/filter|cartridge/i.test(m.title)&&(m.supplies||[]).length===0);
  async function copy(){try{if(!navigator.clipboard?.writeText)throw new Error('No clipboard');await navigator.clipboard.writeText(shoppingListText(rows));setNotice('Shopping list copied.');}catch{setNotice('Clipboard unavailable. You can review each item below.');}}
  return <section className="panel shopping-panel">
-  <div className="parts-heading"><div><h2>Replacement parts to buy</h2><p>Stock shortfalls for scheduled maintenance, not automatic orders.</p></div><label className="shopping-toggle"><input type="checkbox" checked={all} onChange={e=>setAll(e.target.checked)}/> Include later / unscheduled</label></div>
+  <div className="parts-heading"><div><h2>Replacement parts to buy</h2><p>Scheduled replacement needs and configured low-stock shortfalls, not automatic orders.</p></div><label className="shopping-toggle"><input type="checkbox" checked={all} onChange={e=>setAll(e.target.checked)}/> Include later / unscheduled</label></div>
   <div className="shopping-stats"><span><strong>{summary.partCount}</strong> part types needed</span><span><strong>{money(summary.knownCents)}</strong> known estimate{summary.unknownPrices>0?' + '+summary.unknownPrices+' price(s) unknown':''}</span></div>
   {rows.length?<><div className="shopping-rows">{rows.map(r=><div className="shopping-row" key={r.maintenanceId+'-'+r.part.id}>
     <div><strong>{r.quantity} × {r.part.name||'Part name needed'}</strong><small>{r.maintenanceTitle} · {[r.part.size,r.part.partNumber].filter(Boolean).join(' · ')||'Save size / part number'}</small><small>{r.part.store||'Store not set'}</small></div>

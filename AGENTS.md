@@ -43,3 +43,12 @@ Future inventory import may use a mapping `{sourceApp, sourceId, projectId, mate
 - Equipment label photos stay in IndexedDB and JSON exports, compressed using attachmentFromFile. Never upload to external servers and never seed real appliance identifiers or personal photos in the repository.
 - Deleting equipment must unlink matching maintenance tasks, not erase those tasks. Restock confirmations update only onHand via stockAfterRestock, never create spending or auto-consume stock.
 - Keep four navigation tabs; equipment lives in Maintenance. Mobile usability and simple workflows are essential.
+
+
+## Guided maintenance and seasonal maintenance
+
+- Never silently log completion when tapping Done today. Record a reviewed actual service date, cost, usage, optional receipt and parts used; subtract on-hand inventory only with an explicit checkbox and enough stock. Maintenance paid amount stays in service history, NOT in project spending.
+- ServiceEntry.usedSupplies, stockDeducted and receipt are optional v3 additions. Legacy v1/v2/v3 export validation must preserve records. Validate attachment MIME/data URL as with equipment photos.
+- Agenda uses actual dueMaintenance dates and 30/60-day windows. Do not derive a false due date for unscheduled templates.
+- Low-stock alert is based only on user-entered minOnHand (optional) and independent of due dates. No automatic shopping/bank integrations.
+- Seasonal templates use annual calendar-month intervals and start unscheduled. Avoid duplicating Holiday Display Blueprint installation and wiring tasks.
