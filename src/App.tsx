@@ -22,6 +22,8 @@ import { GuidedSetup } from './GuidedSetup';
 import { QuickCapture } from './QuickCapture';
 import type { QuickCaptureRequest } from './QuickCapture';
 import { HomeReference } from './HomeReference';
+import { HomeSearch } from './HomeSearch';
+import type { SearchResult } from './home-search.mjs';
 import { BackupTransfer } from './BackupTransfer';
 import { mergeNewRecords } from './safe-transfer.mjs';
 import type { CompletionDetails } from './maintenance-enhancements.mjs';
@@ -72,6 +74,7 @@ export default function App(){
   const [editorTab,setEditorTab]=useState<EditorTab>('plan');
   const [flash,setFlash]=useState('');
   const [showQuick,setShowQuick]=useState(false);
+  const [showSearch,setShowSearch]=useState(false);
   const [showSetup,setShowSetup]=useState(false);
   const [maintenanceFocus,setMaintenanceFocus]=useState('');
   const [lastEdit,setLastEdit]=useState(()=>{try{return Number(localStorage.getItem('hpp-last-edit')||0);}catch{return 0;}});
@@ -135,6 +138,11 @@ export default function App(){
   });
   function navigate(next:Page){setSelected(null);setMaintenanceFocus('');setPage(next);window.scrollTo(0,0);}
   function goMaintenance(id:string){navigate('maintenance');setMaintenanceFocus(id);}
+  function openSearchResult(result:SearchResult){
+    setShowSearch(false);
+    if(result.kind==='project')edit(result.id);
+    else goMaintenance(result.kind==='equipment'?'equipment:'+result.id:result.id);
+  }
   function quickCreate(req:QuickCaptureRequest){
     setShowQuick(false);
     if(req.kind==='project'){
@@ -184,7 +192,7 @@ export default function App(){
       <div className="side-note"><span className="status-dot"/> Offline-first workspace<small>Optional private household sync</small></div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div className="top-left"><span className="top-kicker">PERSONAL WORKSPACE</span><span className="top-title">{page==='overview'?'Today':page==='projects'?'Projects':page==='maintenance'?'Maintenance':'Backup & data'}</span></div><div className="top-actions"><span className="save-indicator">{saveError?'⚠ Save error':saving?'Saving…':saved?'✓ Saved locally':'Preparing save…'}</span><button className="button primary" onClick={()=>setShowQuick(true)}>+ Quick add</button></div></header>
+      <header className="topbar"><div className="top-left"><span className="top-kicker">PERSONAL WORKSPACE</span><span className="top-title">{page==='overview'?'Today':page==='projects'?'Projects':page==='maintenance'?'Maintenance':'Backup & data'}</span></div><div className="top-actions"><span className="save-indicator">{saveError?'⚠ Save error':saving?'Saving…':saved?'✓ Saved locally':'Preparing save…'}</span><button className="button secondary top-search-btn" onClick={()=>setShowSearch(true)}>⌕ Search</button><button className="button primary" onClick={()=>setShowQuick(true)}>+ Quick add</button></div></header>
       <main className="content">
         {db.demo&&<div className="demo-banner"><strong>Sample workspace</strong> — These are fictional projects and amounts. Start fresh under Backup & data before entering personal information. <button onClick={()=>navigate('data')}>Manage sample data</button></div>}
         {saveError&&<div role="alert" className="alert error">{saveError} <button onClick={()=>downloadBackup(db)}>Export backup</button> <button onClick={()=>{void queue.current?.enqueue(db).catch(()=>{});}}>Retry save</button></div>}
@@ -225,6 +233,7 @@ export default function App(){
       </main>
     </div>
     {showQuick&&<QuickCapture projects={db.projects} onCreate={quickCreate} onClose={()=>setShowQuick(false)}/>}
+    {showSearch&&<HomeSearch data={db} onOpen={openSearchResult} onClose={()=>setShowSearch(false)}/>}
     <nav className="mobile-nav" aria-label="Mobile navigation">{NAV.map(([id,label,icon])=><button key={id} onClick={()=>navigate(id)} className={page===id?'selected':''}><span>{icon}</span><small>{label==='Backup & data'?'Backup':label}</small></button>)}</nav>
   </div>;
 }
@@ -312,13 +321,13 @@ function ProjectEditor({project:p,allProjects,tab,setTab,patch,back,remove,alert
 }
 
 function MaintenanceView({items,projects,equipment,focusId,equipmentDeepLink,onOpenProject,change,changeEquipment,unlinkEquipment}:{items:MaintenanceItem[];projects:Project[];equipment:EquipmentItem[];focusId:string;equipmentDeepLink:string;onOpenProject:(id:string)=>void;change:(fn:(items:MaintenanceItem[])=>MaintenanceItem[])=>void;changeEquipment:(fn:(items:EquipmentItem[])=>EquipmentItem[])=>void;unlinkEquipment:(id:string)=>void}){
- const [selected,setSelected]=useState<string|null>(focusId||null);
+ const [selected,setSelected]=useState<string|null>(focusId.startsWith('equipment:')?null:focusId||null);
  const [showPresets,setShowPresets]=useState(false);
  const [section,setSection]=useState<'upcoming'|'tasks'|'history'|'reference'>('upcoming');
  const [presetMode,setPresetMode]=useState<'home'|'seasonal'>('home');
  const [completing,setCompleting]=useState<string|null>(null);
- const [showEquipment,setShowEquipment]=useState(Boolean(equipmentDeepLink));
- const [equipmentFocus,setEquipmentFocus]=useState(equipmentDeepLink);
+ const [showEquipment,setShowEquipment]=useState(Boolean(equipmentDeepLink||focusId.startsWith('equipment:')));
+ const [equipmentFocus,setEquipmentFocus]=useState(focusId.startsWith('equipment:')?focusId.slice('equipment:'.length):equipmentDeepLink);
  const [picks,setPicks]=useState<string[]>(()=>MAINTENANCE_PRESETS.filter(p=>p.defaultSelected).map(p=>p.key));
  const [notice,setNotice]=useState('');
  const item=items.find(m=>m.id===selected);

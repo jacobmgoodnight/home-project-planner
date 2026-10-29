@@ -229,3 +229,13 @@
 .sync-diff-group ul{margin:8px 0;padding-left:22px;overflow-wrap:anywhere}
 .quick-kind button,.maintenance-sections button,.editor-tabs button{min-height:42px}
 @media(max-width:400px){.quick-dialog .action-line,.cloud-conflict-review .action-line{flex-direction:column;align-items:stretch}.quick-dialog .action-line button,.cloud-conflict-review .action-line button{width:100%}}
+
+/* Fast global search and compact mobile actions */
+.home-search>input[type="search"]{width:100%;padding:13px 14px;border:1px solid #c6d9cf;border-radius:10px;margin-bottom:14px}
+.home-search-results{max-height:55vh;overflow:auto}
+.home-search-results h3{font-size:.76rem;text-transform:uppercase;letter-spacing:.05em;color:#657e72;margin:15px 0 5px}
+.home-search-results button{display:flex;align-items:center;gap:9px;flex-wrap:wrap;width:100%;border:0;border-bottom:1px solid #e1eee6;background:transparent;text-align:left;padding:10px 2px;color:#184f39}
+.home-search-results button strong{flex:1;min-width:110px;font-size:.83rem}
+.home-search-results button small{flex:1;color:#769183;font-size:.71rem}
+.home-search-results button span{font-weight:700;font-size:.72rem}
+@media(max-width:375px){.top-search-btn{padding:9px;font-size:.76rem}.top-actions{gap:4px}}
