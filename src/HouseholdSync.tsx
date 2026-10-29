@@ -22,6 +22,14 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
  const replaceRef=useRef(onReplace);replaceRef.current=onReplace;
  const working=useRef(false);
  const ready=!!configured&&!!user&&!!home;
+ useEffect(()=>{
+  const pause=()=>{
+   setEnabled(false);
+   setStatus('Automatic sync paused because local data was replaced. Review the cloud copy before reconnecting.');
+  };
+  window.addEventListener('hpp-cloud-pause',pause);
+  return()=>window.removeEventListener('hpp-cloud-pause',pause);
+ },[]);
  const refreshHomes=useCallback(async()=>{
   const s=await getSession();if(!s){setUser('');setHomes([]);return;}
   setUser(s.user.email||s.user.id);const rows=await listHomes();setHomes(rows);
@@ -122,18 +130,18 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
  return <section className="panel household-sync">
   <div className="parts-heading"><div><h2>Optional household sync</h2><p>Backend connected. Sign in to share this home between computer and phone. Offline editing and conflict checks stay enabled.</p></div>
    <span className="sync-health">{ready?(enabled?'Auto-sync on':'Connected · manual sync'):'Not connected'}</span></div>
-  {!configured?<div className="cloud-config"><p>A dedicated Supabase project is required. Existing local projects stay untouched until you connect it. Never paste a secret/service-role key.</p>
-   <details><summary>Configure dedicated Supabase backend</summary>
+  {!configured?<div className="cloud-config"><p>The approved shared Supabase project is preconfigured. Advanced users may change the backend, but household data is never uploaded without signing in and selecting a home. Never paste a secret/service-role key.</p>
+   <details><summary>Advanced: configure a different Supabase backend</summary>
     <label className="field"><span>Project URL</span><input placeholder="https://project-ref.supabase.co" value={url} onChange={e=>setUrl(e.target.value)}/></label>
     <label className="field"><span>Publishable key (sb_publishable_…)</span><input value={key} onChange={e=>setKey(e.target.value)} placeholder="sb_publishable_…" autoComplete="off"/></label>
     <button className="button secondary" onClick={configure}>Save cloud connection</button>
-    <p className="subtle">The Home Project Planner SQL schema and row-level security rules must already be installed in this dedicated project.</p>
+    <p className="subtle">The Home Project Planner SQL schema and row-level security rules must already be installed in the selected backend.</p>
    </details></div>:
    !user?<div className="cloud-auth"><p>Use the same email and password on Windows and your phone. Creating an account may require email confirmation; your current local records remain untouched.</p>
     <p className="subtle">If your confirmation link returns to a different app, add <code>https://jacobmgoodnight.github.io/home-project-planner/</code> to this Supabase project's Auth Redirect URLs.</p>
     <div className="form-grid"><label className="field"><span>Email</span><input type="email" value={email} autoComplete="username" onChange={e=>setEmail(e.target.value)}/></label>
     <label className="field"><span>Password</span><input type="password" value={password} autoComplete="current-password" onChange={e=>setPassword(e.target.value)}/></label></div>
-    <div className="action-line"><button className="button primary" disabled={busy||!email||!password} onClick={signin}>Sign in</button><button className="button secondary" disabled={busy||!email||password.length<10} onClick={signup}>Create account</button><button className="small-btn" onClick={()=>{forgetCloud();setConfigured(false);}}>Change backend</button></div>
+    <div className="action-line"><button className="button primary" disabled={busy||!email||!password} onClick={signin}>Sign in</button><button className="button secondary" disabled={busy||!email||password.length<10} onClick={signup}>Create account</button><details className="sync-details"><summary>Advanced settings</summary><button className="small-btn" onClick={()=>{forgetCloud();setConfigured(false);}}>Change backend</button></details></div>
    </div>:
    <div className="cloud-auth">
     <p className="subtle">Signed in: {user} <button className="small-btn" onClick={()=>void run(async()=>{await signOutCloud();setUser('');setHomes([]);setEnabled(false);localStorage.setItem('hpp-auto-sync','no');})}>Sign out</button></p>

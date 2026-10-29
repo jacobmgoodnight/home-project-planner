@@ -27,6 +27,15 @@ export function configureCloud(url:string,key:string){
  localStorage.removeItem(SESSION);
 }
 export function forgetCloud(){localStorage.removeItem(CONF);localStorage.removeItem(SESSION);localStorage.removeItem('hpp-cloud-bound-home');}
+
+/** Protect shared data before a destructive local restore, demo load, or workspace reset. */
+export function pauseSyncForLocalReplace(){
+ try {
+  localStorage.setItem('hpp-auto-sync','no');
+  localStorage.removeItem('hpp-cloud-bound-home');
+ }catch{/* Browser storage may be restricted; send an in-page event too. */}
+ window.dispatchEvent(new Event('hpp-cloud-pause'));
+}
 export function bindLocalHome(homeId:string){
  const user=getCloudSession()?.user.id,cfg=cloudSettings();
  if(!user||!cfg)throw new Error('Sign in before connecting a household.');

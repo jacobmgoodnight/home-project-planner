@@ -1,7 +1,7 @@
 {
   "name":"Home Project Planner",
-  "short_name":"Projects",
-  "description":"Your local-first home projects, budgets and maintenance",
+  "short_name":"Home Planner",
+  "description":"Home projects, maintenance, equipment and optional household sync",
   "start_url":"./",
   "scope":"./",
   "display":"standalone",

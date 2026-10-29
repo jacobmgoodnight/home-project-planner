@@ -14,6 +14,7 @@ import { MaintenanceHistory } from './MaintenanceHistory';
 import { TodayDashboard } from './TodayDashboard';
 import { HomeReminders } from './HomeReminders';
 import { HouseholdSync } from './HouseholdSync';
+import { pauseSyncForLocalReplace } from './cloud-client';
 import { GuidedSetup } from './GuidedSetup';
 import { QuickCapture } from './QuickCapture';
 import type { QuickCaptureRequest } from './QuickCapture';
@@ -148,6 +149,7 @@ export default function App(){
   }}
   function statusNotice(message:string){setFlash(message);window.scrollTo({top:0,behavior:'smooth'});}
   function replaceBackup(value:Database){
+    pauseSyncForLocalReplace();
     patch(()=>value);setSelected(null);navigate('overview');
     statusNotice('Backup restored. Existing data on this device was replaced after your confirmation.');
   }
@@ -161,7 +163,7 @@ export default function App(){
     <aside className="sidebar">
       <div className="brand"><span className="brand-mark">⌂</span><div><strong>Home Project</strong><span>PLANNER</span></div></div>
       <nav aria-label="Main navigation">{NAV.map(([id,label,icon])=><button key={id} onClick={()=>navigate(id)} className={page===id?'selected':''}><span aria-hidden="true">{icon}</span>{label}</button>)}</nav>
-      <div className="side-note"><span className="status-dot"/> Stored on this device<small>No account or cloud sync</small></div>
+      <div className="side-note"><span className="status-dot"/> Offline-first workspace<small>Optional private household sync</small></div>
     </aside>
     <div className="main-shell">
       <header className="topbar"><div className="top-left"><span className="top-kicker">PERSONAL WORKSPACE</span><span className="top-title">{page==='overview'?'Today':page==='projects'?'Projects':page==='maintenance'?'Maintenance':'Backup & data'}</span></div><div className="top-actions"><span className="save-indicator">{saveError?'⚠ Save error':saving?'Saving…':'✓ Local save'}</span><button className="button primary" onClick={()=>setShowQuick(true)}>+ Quick add</button></div></header>
@@ -192,8 +194,8 @@ export default function App(){
         </>:page==='maintenance'?<MaintenanceView key={maintenanceFocus||equipmentDeepLink||'main'} equipmentDeepLink={equipmentDeepLink} focusId={maintenanceFocus} onOpenProject={edit} items={db.maintenance} projects={db.projects} equipment={db.equipment} change={fn=>patch(d=>({...d,maintenance:fn(d.maintenance)}))} changeEquipment={fn=>patch(d=>({...d,equipment:fn(d.equipment)}))} unlinkEquipment={id=>patch(d=>({...d,maintenance:d.maintenance.map(m=>m.equipmentId===id?{...m,equipmentId:''}:m)}))} />:
           <div className="data-page"><div className="page-heading"><div><h1>Keep your plans safe.</h1><p>Your data starts in this browser, on this device. Optional household sync is available below.</p></div><a className="small-btn" href="#household-sync">Household sync ↓</a></div>
             <BackupTransfer data={db} lastEdit={lastEdit} lastExport={lastExport} onPrepared={noteExport} onReplace={replaceBackup} onMerge={mergeBackup}/>
-            <section className="panel"><h2>Workspace controls</h2><p>Need an example before starting? Load fictional projects and comparisons. This replaces the current workspace.</p><div className="action-line"><button className="button secondary" onClick={()=>{if(window.confirm('Replace all current data with fictional demo projects? Export first if needed.')){patch(()=>demoData());setSelected(null);statusNotice('Fictional demo workspace loaded.');}}}>Load demo workspace</button><button className="button danger" onClick={()=>{if(window.confirm('Permanently remove ALL projects and maintenance records on this device? Export a backup first.')){patch(()=>emptyDatabase());setSelected(null);statusNotice('Local workspace cleared.');}}}>Clear all data</button></div></section>
-            <section className="panel"><h2>How your data works</h2><ul className="help-list"><li>Stored in this browser’s IndexedDB database; GitHub Pages does not receive your records.</li><li>Different browsers, phones and private tabs have separate data. No automatic sync.</li><li>Clearing site data can erase your projects. Export regularly, especially before major changes.</li><li>Photos and PDFs are embedded in the JSON backup. Large attachments make backups larger.</li><li>For privacy, exports are created on-device. No bank access, purchase automation or shopping data collection.</li></ul></section>
+            <section className="panel"><h2>Workspace controls</h2><p>Need an example before starting? Load fictional projects and comparisons. This replaces the current workspace.</p><div className="action-line"><button className="button secondary" onClick={()=>{if(window.confirm('Replace all current data with fictional demo projects? Export first. This pauses household cloud sync so the demo will NOT replace shared data.')){pauseSyncForLocalReplace();patch(()=>demoData());setSelected(null);statusNotice('Fictional demo workspace loaded.');}}}>Load demo workspace</button><button className="button danger" onClick={()=>{if(window.confirm('Permanently clear this device’s local projects, maintenance and equipment? Export a backup first. This pauses cloud sync; shared household data will NOT be deleted.')){pauseSyncForLocalReplace();patch(()=>emptyDatabase());setSelected(null);statusNotice('Local workspace cleared.');}}}>Clear all data</button></div></section>
+            <section className="panel"><h2>How your data works</h2><ul className="help-list"><li>Stored in this browser’s IndexedDB database; GitHub Pages does not receive your records.</li><li>Browsers and devices store separate local copies unless you sign into the same household and explicitly enable automatic sync.</li><li>Clearing browser data can erase local records. Export backups regularly. Loading demo data, restoring a backup or clearing this device intentionally pauses automatic sync.</li><li>Photos and PDFs are embedded in the JSON backup. Large attachments make backups larger.</li><li>Exports are created on-device. With household sync enabled, selected household records are sent privately to Supabase. No bank access or purchase automation.</li></ul></section>
           </div>}
         {/* Remain mounted across all pages so automatic synchronization can run while the app is open. */}
         <div hidden={page!=='data'} id="household-sync">
@@ -356,7 +358,7 @@ function MaintenanceView({items,projects,equipment,focusId,equipmentDeepLink,onO
   </section>
   </div></div></div>;}
  return <div>
-  <div className="page-heading"><div><h1>Stay ahead of maintenance.</h1><p>Simple household routines and reminders, stored on this device.</p></div><div className="action-line"><button className="button secondary" onClick={()=>{setEquipmentFocus('');setShowEquipment(true);}}>▣ Equipment ({equipment.length})</button><button className="button secondary" onClick={()=>showPresets&&presetMode==='home'&&section==='tasks'?setShowPresets(false):openPresets('home')}>{showPresets&&presetMode==='home'?'Close suggestions':'+ Household checklist'}</button><button className="button primary" onClick={add}>+ Custom task</button></div></div>
+  <div className="page-heading"><div><h1>Stay ahead of maintenance.</h1><p>Track household routines locally, with optional household synchronization.</p></div><div className="action-line"><button className="button secondary" onClick={()=>{setEquipmentFocus('');setShowEquipment(true);}}>▣ Equipment ({equipment.length})</button><button className="button secondary" onClick={()=>showPresets&&presetMode==='home'&&section==='tasks'?setShowPresets(false):openPresets('home')}>{showPresets&&presetMode==='home'?'Close suggestions':'+ Household checklist'}</button><button className="button primary" onClick={add}>+ Custom task</button></div></div>
   {notice&&<div className="maintenance-notice" role="status">{notice} <button onClick={()=>setNotice('')}>Dismiss</button></div>}
   <div className="maintenance-summary"><span><strong>{items.filter(m=>dueMaintenance(m,today()).due).length}</strong> due now</span><span><strong>{items.filter(m=>dueMaintenance(m,today()).soon).length}</strong> coming up</span><span><strong>{items.filter(m=>{const d=dueMaintenance(m,today());return !d.dueDate&&d.dueHours===null;}).length}</strong> need first date</span></div>
 
