@@ -3,7 +3,7 @@ import type { ChangeEvent, ReactNode } from 'react';
 import type { Attachment, Database, DecisionOption, Expense, FutureCost, MaintenanceItem, Material, Project, Quote, ServiceEntry } from './types';
 import { CATEGORIES, STATUSES, emptyDatabase, newEquipment, newMaintenance, newProject, today, uid } from './types';
 import { money, fromDollars, dollars, clamp, projectCost, decisionCost, sortProjects, priority, dueMaintenance, dayDiff } from './logic.mjs';
-import { attachmentFromFile, downloadBackup, load, save, validateBackup } from './storage';
+import { attachmentFromFile, downloadBackup, load, save, validateBackup, saveRecoverySnapshot, loadRecoverySnapshot } from './storage';
 import { demoData } from './demo';
 import { MAINTENANCE_PRESETS,createFromPreset,isPresetInstalled } from './maintenance-presets';
 import { MaintenancePartsEditor,MaintenanceShoppingPanel } from './MaintenanceParts';
@@ -66,6 +66,7 @@ export default function App(){
   const [saveError,setSaveError]=useState('');
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
+  const [hasRecovery,setHasRecovery]=useState(false);
   const [page,setPage]=useState<Page>(()=>new URLSearchParams(location.search).has('equipment')?'maintenance':'overview');
   const [equipmentDeepLink]=useState(()=>new URLSearchParams(location.search).get('equipment')||'');
   const [selected,setSelected]=useState<string|null>(null);
@@ -109,6 +110,9 @@ export default function App(){
     };
     window.addEventListener('beforeunload',warn);
     return()=>window.removeEventListener('beforeunload',warn);
+  },[]);
+  useEffect(()=>{
+    void loadRecoverySnapshot().then(value=>{if(mounted.current)setHasRecovery(!!value);}).catch(()=>{});
   },[]);
   const patch=(fn:(current:Database)=>Database)=>{
     const timestamp=Date.now();setLastEdit(timestamp);
@@ -188,10 +192,26 @@ export default function App(){
     patch(d=>({...d,projects:d.projects.filter(x=>x.id!==p.id).map(x=>({...x,blockedBy:x.blockedBy.filter(id=>id!==p.id)})),maintenance:d.maintenance.map(m=>m.projectId===p.id?{...m,projectId:''}:m)}));setSelected(null);
   }}
   function statusNotice(message:string){setFlash(message);window.scrollTo({top:0,behavior:'smooth'});}
-  function replaceBackup(value:Database){
+  async function replaceWorkspace(value:Database,message:string){
+    if(!db||!validateBackup(value))throw new Error('Invalid replacement workspace.');
+    await queue.current?.wait().catch(()=>{});
+    // Cancel the destructive change if the recovery checkpoint cannot be saved.
+    await saveRecoverySnapshot(db);
+    setHasRecovery(true);
     pauseSyncForLocalReplace();
     patch(()=>value);setSelected(null);navigate('overview');
-    statusNotice('Backup restored. Existing data on this device was replaced after your confirmation.');
+    statusNotice(message+' Automatic household sync is paused until you review the cloud copy.');
+  }
+  async function replaceBackup(value:Database){
+    await replaceWorkspace(value,'Backup restored. Previous local workspace checkpointed.');
+  }
+  async function restoreRecovery(){
+    try{
+      const previous=await loadRecoverySnapshot();
+      if(!previous){statusNotice('No previous workspace checkpoint is stored.');return;}
+      if(!window.confirm('Restore your previous local workspace? Your current copy becomes the new checkpoint. Cloud sync will pause.'))return;
+      await replaceWorkspace(previous,'Previous local workspace restored.');
+    }catch(e){statusNotice('Recovery failed: '+(e instanceof Error?e.message:String(e)));}
   }
   function mergeBackup(value:Database){
     patch(previous=>mergeNewRecords(previous,value).result);setSelected(null);
