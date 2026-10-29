@@ -61,7 +61,8 @@ function checkAttachment(v:unknown):boolean {
 function checkEquipment(v:unknown):v is EquipmentItem {
   return simple(v,['id','name','location','manufacturer','model','serial','purchasedOn','warrantyUntil','notes','photos'])&&
     id(v.id)&&['name','location','manufacturer','model','serial','purchasedOn','warrantyUntil','notes'].every(k=>text(v[k]))&&
-    array(v.photos)&&v.photos.length<=10&&uniqueIds(v.photos)&&v.photos.every(x=>checkAttachment(x)&&typeof (x as {mime:string}).mime==='string'&&(x as {mime:string}).mime.startsWith('image/'));
+    array(v.photos)&&v.photos.length<=10&&uniqueIds(v.photos)&&v.photos.every(x=>checkAttachment(x)&&typeof (x as {mime:string}).mime==='string'&&(x as {mime:string}).mime.startsWith('image/'))&&
+    (v.documents===undefined||(array(v.documents)&&v.documents.length<=20&&uniqueIds(v.documents)&&v.documents.every(checkAttachment)));
 }
 function checkProject(v:unknown):v is Project {
   if(!simple(v,['id','name','category','status','description','targetDate','nextAction','estimatedHours','budgetCents','laborEstimateCents','contingencyPercent','urgency','financialImpact','importance','override','blockedBy','tasks','materials','expenses','futureCosts','quotes','options','attachments','createdAt','updatedAt']))return false;

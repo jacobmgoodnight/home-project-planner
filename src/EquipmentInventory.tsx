@@ -25,6 +25,7 @@ export function EquipmentInventory({items,maintenance,change,unlink,onBack,initi
  const [selected,setSelected]=useState<string|null>(initialSelected||null);
  const [notice,setNotice]=useState('');
  const [uploading,setUploading]=useState(false);
+ const [docsUploading,setDocsUploading]=useState(false);
  const [query,setQuery]=useState('');
  const [filter,setFilter]=useState<'all'|'warranty'>('all');
  const item=items.find(i=>i.id===selected);
@@ -56,6 +57,23 @@ export function EquipmentInventory({items,maintenance,change,unlink,onBack,initi
   }catch(err){setNotice(err instanceof Error?err.message:'Could not add photo.');}
   finally{setUploading(false);}
  }
+ async function documentsChanged(e:ChangeEvent<HTMLInputElement>){
+  if(!item)return;
+  const selection=Array.from(e.target.files||[]);e.target.value='';
+  if(!selection.length)return;
+  if((item.documents||[]).length+selection.length>12){setNotice('Keep up to 12 manuals or warranty documents per equipment item.');return;}
+  setDocsUploading(true);setNotice('');
+  try{
+   const converted:Attachment[]=[];
+   for(const file of selection){
+    const result=await attachmentFromFile(file);
+    converted.push({id:uid(),name:file.name,mime:result.mime,dataUrl:result.dataUrl,date:today()});
+   }
+   change(rows=>rows.map(r=>r.id===item.id?{...r,documents:[...(r.documents||[]),...converted]}:r));
+   setNotice('Manual or document saved in this browser and included in backups.');
+  }catch(err){setNotice(err instanceof Error?err.message:'Could not save document.');}
+  finally{setDocsUploading(false);}
+ }
  if(item){
   const related=maintenance.filter(m=>m.equipmentId===item.id);
   return <div className="equipment-page">
@@ -72,6 +90,11 @@ export function EquipmentInventory({items,maintenance,change,unlink,onBack,initi
      <label className="button secondary file-label"> {uploading?'Saving photos…':'+ Add label photo'} <input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={uploading||item.photos.length>=5} onChange={photosChanged}/></label>
      <div className="equipment-photos">{item.photos.map(photo=><div className="equipment-photo" key={photo.id}><a href={photo.dataUrl} download={photo.name} aria-label={'Save '+photo.name}><img src={photo.dataUrl} alt={'Equipment label: '+photo.name}/></a><div><small>{photo.name}</small><button type="button" className="small-btn" onClick={()=>{if(window.confirm('Remove this photo?'))patch(item.id,{photos:item.photos.filter(p=>p.id!==photo.id)});}}>Remove</button></div></div>)}</div>
      {!item.photos.length&&<p className="subtle">No label photos yet. Use your phone camera or photo library.</p>}
+    </section>
+    <section className="panel"><h2>Manuals & warranty files</h2><p className="subtle">Save a PDF or photo of a manual or warranty document. Everything stays on this device.</p>
+     <label className="button secondary file-label">{docsUploading?'Reading…':'+ Add manual / document'}<input type="file" multiple disabled={docsUploading||(item.documents||[]).length>=12} accept=".pdf,image/jpeg,image/png,image/webp" onChange={documentsChanged}/></label>
+     {(item.documents||[]).map(doc=><div className="equipment-doc-row" key={doc.id}><a href={doc.dataUrl} download={doc.name}>{doc.name} ↧</a><button className="small-btn" onClick={()=>patch(item.id,{documents:(item.documents||[]).filter(d=>d.id!==doc.id)})}>Remove</button></div>)}
+     {!(item.documents||[]).length&&<p className="subtle">No manuals or warranty files saved yet.</p>}
     </section>
     <section className="panel"><h2>Linked maintenance</h2><p className="subtle">{related.length?related.map(m=>m.title).join(' · '):'Open a maintenance task and choose this equipment to link it.'}</p></section>
    </div></div>

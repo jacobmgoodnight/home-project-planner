@@ -4,7 +4,7 @@ import {today} from './types';
 
 export type QuickCaptureRequest={kind:'project'|'step'|'maintenance';title:string;dueDate:string;projectId?:string};
 export function QuickCapture({projects,onCreate,onClose}:{projects:Project[];onCreate:(req:QuickCaptureRequest)=>void;onClose:()=>void}){
- const [kind,setKind]=useState<QuickCaptureRequest['kind']>('step');
+ const [kind,setKind]=useState<QuickCaptureRequest['kind']>(projects.some(p=>p.status!=='Completed')?'step':'project');
  const [title,setTitle]=useState('');
  const [date,setDate]=useState('');
  const [projectId,setProjectId]=useState(projects.find(p=>p.status!=='Completed')?.id||'');

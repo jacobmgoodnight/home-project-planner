@@ -1,4 +1,4 @@
-import {dayDiff,dueMaintenance,addCalendarMonths} from './logic.mjs';
+import {dayDiff,dueMaintenance} from './logic.mjs';
 
 /** Small, deliberately opinionated home dashboard. No invented dates or task creation. */
 export function todayOverview(projects,maintenance,asOf){
@@ -36,12 +36,6 @@ function icsDate(date){return date.replace(/-/g,'');}
 function stableId(raw){return String(raw||'unknown').replace(/[^A-Za-z0-9_-]/g,'-').slice(0,90);}
 
 /** Export current due dates only. After service completion, re-export to update calendar. */
-export function calendarEntries(maintenance){
- return maintenance.flatMap(m=>{
-   const due=dueMaintenance(m,'2026-10-29').dueDate; // Replace with live date below in export; no stateful date inference.
-   return validDate(due)?[{id:m.id,title:m.title,date:due,asset:m.asset}]:[];
- }).sort((a,b)=>a.date.localeCompare(b.date));
-}
 export function calendarIcs(items,asOf){
  const entries=items.flatMap(m=>{
   const due=dueMaintenance(m,asOf).dueDate;

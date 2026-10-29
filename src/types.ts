@@ -33,7 +33,7 @@ export interface MaintenanceSupply {
 export interface EquipmentItem {
   id: string; name: string; location: string; manufacturer: string; model: string;
   serial: string; purchasedOn: string; warrantyUntil: string; notes: string;
-  photos: Attachment[];
+  photos: Attachment[]; documents?: Attachment[];
 }
 export interface MaintenanceItem {
   equipmentId: string;
@@ -60,5 +60,5 @@ export function newMaintenance(): MaintenanceItem {
 }
 
 export function newEquipment(): EquipmentItem {
-  return {id:uid(),name:'',location:'',manufacturer:'',model:'',serial:'',purchasedOn:'',warrantyUntil:'',notes:'',photos:[]};
+  return {id:uid(),name:'',location:'',manufacturer:'',model:'',serial:'',purchasedOn:'',warrantyUntil:'',notes:'',photos:[],documents:[]};
 }
