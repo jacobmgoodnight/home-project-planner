@@ -225,9 +225,13 @@ export default function App(){
           </div>}
         {/* Remain mounted across all pages so automatic synchronization can run while the app is open. */}
         <div hidden={page!=='data'} id="household-sync">
-          <HouseholdSync data={db} onReplace={value=>{
-            if(validateBackup(value))patch(()=>value);
-            else statusNotice('Cloud copy failed validation; local data was not changed.');
+          <HouseholdSync data={db} onReplace={async value=>{
+            if(!validateBackup(value))throw new Error('Cloud copy failed validation. Local records remain unchanged.');
+            // An import is only acknowledged to cloud sync AFTER its local snapshot is durable.
+            await queue.current?.wait().catch(()=>{});
+            await save(value);
+            setDb(value);
+            setSaved(true);
           }}/>
         </div>
       </main>

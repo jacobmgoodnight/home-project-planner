@@ -6,7 +6,7 @@ import {cloudSettings,configureCloud,forgetCloud,getCloudSession,getSession,sign
  listHomes,createHome,createInvite,joinHome,listMembers,removeMember,fetchSnapshot,uploadSnapshot,snapshotHash,readAnchor,setAnchor,bindLocalHome,localBoundToHome} from './cloud-client';
 import type {HomeLink,CloudSnapshot,MemberInfo} from './cloud-client';
 
-export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapshot:Database)=>void}){
+export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapshot:Database)=>Promise<void>}){
  const [configured,setConfigured]=useState(!!cloudSettings());
  const [url,setUrl]=useState(''),[key,setKey]=useState('');
  const [email,setEmail]=useState(''),[password,setPassword]=useState('');
@@ -62,7 +62,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
    }
    if(remote.revision>anchor.revision&&localHash===anchor.hash){
     if(!remote.document||!validateBackup(remote.document))throw new Error('Cloud data failed validation. Your local records are unchanged.');
-    replaceRef.current(remote.document);bindLocalHome(home);setAnchor(home,remote.revision,await snapshotHash(remote.document));
+    await replaceRef.current(remote.document);bindLocalHome(home);setAnchor(home,remote.revision,await snapshotHash(remote.document));
     setLastSynced(new Date().toLocaleString());if(!isAutomatic)setStatus('Cloud changes downloaded.');return;
    }
    setConflict(true);
@@ -108,7 +108,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
   const content=JSON.stringify(document,null,2);
   const blob=new Blob([content],{type:'application/json'});
   const link=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=link;a.download='home-planner-'+label+'-'+new Date().toISOString().slice(0,10)+'.json';
+  const a=window.document.createElement('a');a.href=link;a.download='home-planner-'+label+'-'+new Date().toISOString().slice(0,10)+'.json';
   a.click();window.setTimeout(()=>URL.revokeObjectURL(link),60000);
   setStatus('Backup prepared. Confirm the file was saved before deciding which version to keep.');
  }
@@ -122,7 +122,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
  async function useCloud(){await run(async()=>{
   const remote=await refresh();if(!remote?.document||!validateBackup(remote.document)){setStatus('No valid cloud copy is available.');return;}
   if(!window.confirm('Replace all local data on this device with this household cloud copy? Export a backup first.'))return;
-  replaceRef.current(remote.document);bindLocalHome(home);setAnchor(home,remote.revision,await snapshotHash(remote.document));
+  await replaceRef.current(remote.document);bindLocalHome(home);setAnchor(home,remote.revision,await snapshotHash(remote.document));
   setConflict(false);setStatus('Cloud copy restored; ready to sync.');
  });}
  async function overrideCloud(){await run(async()=>{
