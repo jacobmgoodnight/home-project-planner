@@ -1,15 +1,55 @@
-# Data model v1 and future integrations
+# Data model — current v3
 
-The root IndexedDB snapshot is `{version: 1, demo, projects, maintenance}`.
+The browser stores a **single version 3 snapshot** in IndexedDB under database name \`home-project-planner-v1\` (the IDB name intentionally stays constant through data migrations).
 
-Project: `id`, `name`, `category`, `status`, `nextAction`, `targetDate`, `estimatedHours`, `budgetCents`, `laborEstimateCents`, `contingencyPercent`, priority fields, `blockedBy[]` project references, `tasks[]`, `materials[]`, `expenses[]`, `futureCosts[]`, `quotes[]`, `options[]`, `attachments[]`, creation/update stamps.
+\`\`\`ts
+interface Database {
+  version: 3;
+  demo: boolean;
+  projects: Project[];
+  maintenance: MaintenanceItem[];
+  equipment: EquipmentItem[];
+}
+\`\`\`
 
-Money values are integer USD cents, percent values are decimal numbers, and date-only values use local `YYYY-MM-DD` strings. Stable UUIDs prevent importing order-dependent IDs.
+## Projects
 
-Materials contain user-entered quantities/prices; receipts are `attachments` and actual payments are `expenses`. Future costs have `dueDate` for calendar projections and `committed` for agreed-but-unpaid obligations. Quotes are informational references and cannot silently alter forecasts. Decision options separately store borrowed principal and cash paid today.
+Each project has a stable UUID, category, status, timestamps, priority scoring factors/override, target date, dependency IDs, next action, estimated hours, budget/forecast inputs, and arrays of tasks, materials, actual expenses, future costs, quotes, repair/replace options and attachments.
 
-Maintenance records can link optionally to a project, but remain independent. Each has service entries and interval days/usage. Future integration could map a Holiday Display Blueprint item to a material with an optional provenance record `{sourceApp:'holiday-display-blueprint', sourceId, importedAt}`. Do not require that application or ingest its data automatically.
+Money values are stored as **integer USD cents**. An entered expense is actual spending; a quote, unpurchased material or future cost is not actual spending. Project and maintenance cost logs are independent and may refer to the same payment.
 
-Backup imports should remain versioned. Changing any required object field requires a migration path or an explicit compatible parser; never silently overwrite unsupported backups.
+## Maintenance
 
-Maintenance optional v1 fields: `intervalMonths` (true month arithmetic, takes precedence over day interval), `firstDueDate` (user-set pending due date before any service is logged), and `templateKey` (deduplicates opt-in household presets). Older JSON backups without these fields remain valid. Templates never create completed service entries automatically.
+Each maintenance record has a stable ID, optional \`equipmentId\` and \`projectId\`, a category and free-text asset/model, a configurable day/month/hour interval, optional user-entered first due date, warranty date, optional starter-template key, and service entries.
+
+A service entry stores the actual date, optional hours/mileage, recorded cost, notes, and optionally selected used supplies, whether on-hand stock was deducted, and a local photo/PDF receipt.
+
+Replacement supplies track name, dimensions, SKU, quantity per service, on-hand stock, optional user-selected minimum stock, entered unit price, store, product link and notes. No service automatically logs purchase spending; inventory deduction is a separate explicit choice.
+
+## Equipment
+
+Equipment entries carry stable IDs, name, room/location, manufacturer, model, serial number, purchase date, warranty expiry, notes, up to five compressed label photos, and optional locally saved PDF/image manuals. Maintenance tasks refer to equipment by ID and are unlinked (not deleted) when an equipment entry is removed.
+
+All attachment records contain an ID, display name, MIME type, data URL and date. Embedded attachment content can increase JSON/cloud snapshot size considerably.
+
+## Migration and transfer
+
+\`src/maintenance-support.mjs\` upgrades valid **v1 → v2 → v3** and **v2 → v3** snapshots. Current imports validate the resulting v3 snapshot, including links to existing equipment IDs. JSON backups can be up to 60 MB at import; current cloud snapshots are limited to around 20 MB.
+
+Manual JSON transfer supports **replace all** or **merge only records with new root IDs**. Existing records with matching IDs are not automatically merged or overwritten; conflicts are reported. This is not a full record-level reconciliation algorithm.
+
+## Optional household sync
+
+The Supabase database has a separate, owner-approved \`hpp_*\` namespace inside an existing shared project:
+- \`hpp_households\`: household ID and owner
+- \`hpp_members\`: explicit authenticated members with owner/member roles
+- \`hpp_snapshots\`: **one JSON snapshot per household** with revision and update metadata
+- \`hpp_invites\`: hashed one-use invite codes with expiry
+
+Row-level security protects reads. Authenticated clients **cannot directly INSERT/UPDATE** these tables; checked RPCs create homes, redeem owner-created invitations, list/revoke member access and write snapshots using expected-revision compare-and-swap. Only the **publishable key** is present in frontend source.
+
+After explicit household binding, the browser tracks the cloud revision/hash locally and checks for remote changes while the app is open. It automatically downloads when local is unchanged; uploads when cloud revision is unchanged; and **pauses for review if both changed**. This is household snapshot sync, not row-by-row conflict resolution or a full historical backup service.
+
+**Browser-origin caveat:** the other apps on the same \`jacobmgoodnight.github.io\` origin share a web security origin. Local IndexedDB and stored sessions are not a cryptographically isolated vault from any other script served under that origin.
+
+Potential external imports (e.g., Holiday Display Blueprint) require explicit user approval and provenance/deduplication; they do not occur automatically.

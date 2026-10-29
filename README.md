@@ -1,195 +1,117 @@
 # Home Project Planner
 
-**A practical, local-first PWA for household projects, repairs, vehicle maintenance, DIY work and purchase decisions.**
+**A local-first, installable home dashboard for projects, maintenance, equipment, repair decisions and household spending.**
 
-Focus on your next action, record what you've actually spent, and compare options without a maze of enterprise project-management features.
+[**Open the live app**](https://jacobmgoodnight.github.io/home-project-planner/) · [Roadmap](ROADMAP.md) · [Browser acceptance checklist](docs/QA.md) · [Data model](docs/DATA_MODEL.md)
 
-## Features
+The goal is to make the next useful household task obvious—not to build an elaborate project-management system. You can use the app without an account. **Optional, private household sync** is available if you sign in and explicitly connect your household.
 
-- **Projects:** create, edit and delete projects; category, status, target date, notes, next action, hours, and photos/PDFs.
-- **Work-next dashboard:** transparent automatic priority score, manual **Do first** / **Do later** overrides, and filters for short, inexpensive, overdue, waiting, and monthly-planned work.
-- **Simple checklists:** phases, step due dates and completion tracking.
-- **Cost planning:** budgets; purchased/unpurchased material estimates; actual cash expenses; explicitly committed but unpaid expenses; other future estimates; labor estimate and contingency. Displays budget headroom and total forecast.
-- **Quotes:** manual written quote comparison with supplier and source links. Quotes never automatically count as purchases.
-- **Repair vs. replace:** manual scenario builder, cash/financed cost breakdown, nominal APR, amortizing payments and total-of-payments. Safety and financial assumptions are visible.
-- **Maintenance:** selectable household starter checklist, calendar-month/day/usage intervals, first due dates, quick **Done today** logs, warranties and service history. No external notifications.
-- **Attachments:** on-device compressed photos and small PDF receipts. Included in JSON export.
-- **Backup:** full versioned JSON export and validated replace-only restore, plus optional fictional sample projects.
-- **Installable PWA:** browser installation and offline caching after a successful first online load.
+## Start here
 
+1. Open the [app](https://jacobmgoodnight.github.io/home-project-planner/) on Windows, iPhone or another supported browser. Add it to your Home Screen/desktop for an app-like experience.
+2. Open **Today → Guided setup** to choose the equipment and household routines you actually use. Nothing is prepopulated as owned, serviced or due.
+3. Use **Quick add** for a project, a project step or a maintenance task.
+4. On **Maintenance → Equipment**, save model numbers, warranty dates, label photos and manuals. Link equipment to maintenance routines and replacement parts.
+5. Create a **Backup & data → Download backup** before importing or overwriting anything.
+6. For optional computer–phone sync, follow [Set up household sync](#set-up-household-sync).
 
-## Household maintenance starter checklist
+The main navigation intentionally has **four destinations**: **Today**, **Projects**, **Maintenance**, and **Backup & data**. Detailed tools are grouped inside them rather than scattered across more tabs.
 
-Open **Maintenance → Household checklist** and choose the tasks appropriate for your home. Monthly HVAC filter checks/changes, four-month refrigerator drinking-water filter changes, monthly smoke/CO alarm tests and other essentials are preselected; optional equipment is NOT assumed. Confirm the list before adding. No dates or service completions are invented. Set a **First due date** or log the real **last completed service** before alerts begin. **Done today** starts a new interval from today's actual work; an accidental entry can be deleted in Service history. Existing records are preserved and duplicate presets are skipped.
+## What it does
 
-Intervals are editable and need to follow equipment instructions. ENERGY STAR recommends checking HVAC filters monthly and replacing when dirty, at least every three months ([ENERGY STAR](https://www.energystar.gov/saveathome/heating-cooling)). GE commonly recommends refrigerator water-filter replacement after six months or earlier for low flow; the four-month preset is a user preference, NOT a GE specification ([GE](https://products.geappliances.com/appliance/gea-support-search-content?contentId=21284)). Test smoke alarms monthly ([USFA](https://www.usfa.fema.gov/prevention/home-fires/prepare-for-fire/smoke-alarms/index.html)). Clean dryer lint screens every load, regardless of the scheduled vent check ([CPSC](https://www.cpsc.gov/s3fs-public/5022.pdf)).
+| Where | Capabilities |
+| --- | --- |
+| **Today** | Maintenance needing attention, project steps due within a week, short unblocked projects, opt-in guided setup, device reminders and an on-demand weekly recap. Expand the older financial overview only when needed. |
+| **Projects** | Category/status, due dates, priority overrides, checklists, dependencies, images/PDFs, budget/actuals/forecast, materials, quotes and repair-vs-replace financing comparisons. |
+| **Maintenance → Upcoming & supplies** | Actual due dates (30/60-day view), hour/mileage triggers, low-stock thresholds, shopping list and optional iCalendar (.ics) export. |
+| **Maintenance → All routines** | Recurring interval presets (including opt-in seasonal checklists), editable schedules, reviewed service completion, service costs, receipts and optional parts-stock deductions. |
+| **Maintenance → History & spending** | Service history and actual recorded maintenance costs by year, month and equipment. |
+| **Maintenance → Equipment / Home reference** | Model, serial, location, warranty, label photos, user-supplied manuals, replacement SKUs and receipts, searchable locally. Camera capture and printable QR equipment labels are optional. |
+| **Backup & data** | Private JSON backup/export, guarded restore, merge of *new* record IDs, and optional authenticated household sync and invitation management. |
 
-Optional version-1 maintenance fields are backward-compatible with existing local IndexedDB data and older backup files. Browser data is not automatically replaced by a GitHub Pages update.
+### Important behavior
 
-## Local development
+- A maintenance preset does not invent a last-service date, purchase, appliance model, or initial due date. You choose the first due date. The app uses true calendar-month intervals (or day/usage intervals when configured).
+- **Done today** is a guided service log: review actual date, cost, notes, usage, receipt and parts used. Stock changes **only** if you explicitly select the deduction option. Restocking is a separate confirmed action.
+- A low-stock reminder requires a **minimum on-hand quantity you set**. Product URLs/stores/prices are user-entered; no orders are placed.
+- An annual maintenance total shows service payments entered under Maintenance, not necessarily all household spending. You might also log the same payment as a Project expense; **do not add the two totals together**.
+- Calendar export creates a **one-time .ics snapshot** of *future* scheduled maintenance dates (with a one-day reminder). It does not create a live calendar subscription or remove earlier imported events after a service is completed. Re-export and update calendar events as needed.
+- With permission, supported browsers can show one due-item reminder per day **when you open the app**. There is no background push while the PWA is closed. The weekly recap is generated on the device and manually copied/shared, not automatically emailed.
+- QR equipment labels request an image from the optional external goQR service and include only the public app URL and an opaque equipment ID. They **do not include** household names, serials, or model numbers. The destination device needs the corresponding data before the QR link can display the record.
 
-Requires Node.js 22+ and npm.
+## Set up household sync
 
-```bash
+**Current state:** The approved Supabase backend, app configuration and private \`hpp_*\` tables are deployed. The database permission checks and CI build passed. **A real owner/member login, two-device transfer, and offline-conflict test have not yet been completed**; don't treat production multi-device operation as field-verified until you do this.
+
+The general Supabase project \`rwqclcpmtuebxndadkxv\` is shared with other applications by owner approval because the free organization reached its two-active-project limit. All Home Project Planner database objects have their own \`hpp_*\` names. This app includes **only a publishable browser key**—never a service-role or secret key—and does not alter the other apps' tables.
+
+1. **On your main computer:** open **Backup & data**, download a JSON backup and verify it is saved.
+2. Open **Optional household sync** (below the backup tools), create an email/password account or sign in, then create a household. Email verification may be required.
+3. Choose **Review cloud → Upload this device as starting copy** for an empty new household. Review the confirmation. Enable automatic sync once the starting copy has been uploaded.
+4. **On your phone:** open the same app and sign in with the *same account*. Before replacing phone-only records, export a phone backup. Select your household, review the cloud copy and choose **Use cloud copy on this device**. Then enable sync.
+5. Make a small test change on one device, keep the app open and online, use **Sync now** or reopen/check the other app, and confirm the change appears. Test reversing the direction before relying on sync.
+6. To share with another adult, the household owner can generate a one-use seven-day invitation under **Household sharing and invitations**. The other person signs up/signs in and redeems the code. Owners can revoke future cloud access.
+
+**Sync is not instantaneous:** the app checks approximately once per minute while open, and when the browser becomes visible/reconnects. Offline edits stay in local IndexedDB and synchronize later. If the cloud and local copies changed independently, synchronization flags the conflict; **there is no automatic per-field conflict merge**. Export both copies and explicitly choose which to keep. Revoking household access cannot erase files already downloaded by another member.
+
+**Safety:** Loading the fictional demo, clearing a local workspace or replacing it with a JSON backup intentionally *pauses and disconnects this device's automatic sync* so those changes cannot unexpectedly replace the shared household. Review the cloud copy again before re-enabling sync. No local records are uploaded merely by visiting the app or signing in.
+
+If an email verification link returns to a different application, the shared Supabase project's **Authentication → URL Configuration → Redirect URLs** may need this exact entry added without removing existing app entries:
+
+\`https://jacobmgoodnight.github.io/home-project-planner/\`
+
+### Privacy and backup limits
+
+- Unsynced data lives in **browser IndexedDB**; GitHub Pages only hosts static files. When you enable household sync, the household JSON snapshot (including embedded attachments) is sent over HTTPS to Supabase, visible only to authenticated household members under its access rules.
+- **Export JSON regularly**, even with sync enabled. A shared live snapshot is not a historical backup or undo system. Browser cleanup and iOS storage eviction can erase the local copy.
+- JSON exports contain household records, photos, receipts and potentially serial numbers. Keep exports private; **never commit exports or credentials to this public repository**.
+- The import limit is **60 MB** and the cloud snapshot limit is about **20 MB** in serialized JSON. Incoming images can be up to 15 MB before resizing (up to 1400 pixels on the longest side); PDFs must be at most 2 MB. These are practical limits, not a guarantee your device has enough free storage.
+- Because this app shares \`jacobmgoodnight.github.io\` with other Pages apps, scripts served on other paths share the same **browser origin** and can potentially access local site data and session tokens. Only host trusted apps there; use a dedicated origin/domain if stronger browser isolation becomes necessary.
+- No bank account access, automatic purchases, analytics service, AI-generated prices, or unrequested imports from other apps.
+
+## Cost and priority calculations
+
+Project money is recorded in **integer USD cents**.
+
+- **Actual spent**: entered project expenses.
+- **Unpaid materials**: estimated quantity × user-entered unit price for materials not marked purchased.
+- **Committed**: explicitly agreed future costs not yet paid.
+- **Future estimates**: unpaid materials, labor estimate and uncommitted future costs.
+- **Contingency**: a user-set percentage applied to unpaid committed and estimated amounts.
+- **Forecast**: actual spent + commitments + future estimates + contingency.
+- **Budget remaining (cash)**: budget − actual spent; **forecast headroom**: budget − forecast.
+
+Quotes and "material purchased" flags are references and **do not automatically create an actual expense**. Repair/replace financing uses a standard fixed-rate amortizing payment calculation, including 0% APR handling, and keeps cash paid today separate from financed principal. Estimates are not lending offers or professional repair/safety advice.
+
+Project prioritization uses explainable urgency, importance, financial impact, target dates, dependencies, budget and effort. The manual **Do first / Automatic / Do later** setting overrides calculated order; no AI ranking or outside data collection is required.
+
+## Maintenance starter guidance
+
+The app offers household checklist suggestions, not manufacturer-specific requirements. A monthly HVAC-filter check, user-preferred four-month refrigerator water-filter routine, smoke/CO tests, and seasonal tasks may be useful, but follow the actual equipment instructions. [ENERGY STAR](https://www.energystar.gov/saveathome/heating-cooling) discusses air filter checks, [GE](https://products.geappliances.com/appliance/gea-support-search-content?contentId=21284) describes common water-filter timing, and [USFA](https://www.usfa.fema.gov/prevention/home-fires/prepare-for-fire/smoke-alarms/index.html) addresses smoke alarms.
+
+## Development and deployment
+
+Requires **Node.js 22+** and npm.
+
+\`\`\`bash
 npm install
 npm run dev
-npm run test
-npm run build
-```
+npm run check
+\`\`\`
 
-Open the Vite local URL (normally `http://localhost:5173`). The project ships with **no actual private home, repair, budget or vehicle data**. To see illustrative projects, use **Backup & data → Load demo workspace**. All demo projects and amounts are fictional, not verified prices.
+Production build: \`npm run build\`. The GitHub Pages build uses \`GITHUB_PAGES=true\` (configured in \`.github/workflows/verify-deploy.yml\`).
 
-## Deploy and run
+The existing GitHub Actions workflow runs unit tests, logic type-checking, the TypeScript/Vite production build and a GitHub Pages deployment. Check the [latest Actions runs](https://github.com/jacobmgoodnight/home-project-planner/actions) for the actual published revision. The repository includes fictional demo data only; choose **Backup & data → Load demo workspace** to opt into it.
 
-The full MVP has been committed to [this repository](https://github.com/jacobmgoodnight/home-project-planner). No manual ZIP upload, `git init`, or `git push` is needed for this release.
+### Architecture
 
-**GitHub Pages:** This repository is public and the app is deployed through GitHub Actions. The public repository contains source code and fictional examples only; personal data stays in each browser's local storage.
+- **React 19 / TypeScript / Vite 6** for the static installable app; browser **IndexedDB** for local persistence.
+- \`src/types.ts\` and \`src/storage.ts\`: **v3** snapshot model and validated v1/v2/v3 import migration.
+- \`src/logic.mjs\`, \`src/home-insights.mjs\`, \`src/maintenance-enhancements.mjs\`, \`src/today-calendar.mjs\`: domain calculations.
+- \`src/App.tsx\` and focused components: projects, Today, maintenance, equipment, reference book, backup, and household sync.
+- \`src/cloud-client.ts\`, \`src/HouseholdSync.tsx\`: optional Supabase authentication, memberships, revision-guarded snapshot sync and conflict handling.
+- \`supabase/home-project-planner.sql\`: approved and deployed **\`hpp_*\`** schema, with row-level security, role checks and owner-only invitation/member management.
+- \`public/sw.js\`: same-origin app-shell caching for offline use. Sync and external QR image lookup still need network access.
+- \`tests/*.test.mjs\`: domain tests; [docs/QA.md](docs/QA.md) tracks device and account acceptance tests.
 
-1. Open **Settings → Pages → Build and deployment** and select **GitHub Actions**.
-2. The included `.github/workflows/verify-deploy.yml` workflow installs dependencies, runs tests, checks TypeScript, builds the site, and deploys the `dist` directory from `main`.
-3. Open `https://jacobmgoodnight.github.io/home-project-planner/` **after** the Actions deployment has completed successfully.
-
-If the repository's private Pages option is unavailable, either use the local development/preview instructions above or explicitly decide to make the repository public. Do not publish any JSON exports or personal expense, repair, vehicle, or household details in the repository. The source contains fictional demo data only.
-
-To create a local production build, run `npm install` and `npm run build`. For a GitHub Pages-subpath preview, set `GITHUB_PAGES=true` while building.
-
-## Money model and important limitations
-
-All money is stored as **integer USD cents**, with no external prices or bank access.
-
-- **Actual spent** = sum of recorded expenses only.
-- **Unpaid materials** = sum of quantity × unit price for materials **not** marked purchased.
-- **Committed** = future costs marked as agreed to but not paid.
-- **Future estimates** = unpaid materials + labor estimate + future items that aren't committed.
-- **Contingency** = configured percentage of unpaid committed and estimated amounts.
-- **Forecast** = spent + committed + future estimates + contingency.
-- **Budget remaining (cash)** = budget − spent; **forecast headroom** = budget − forecast.
-- **This month's planned spending** = dated future costs (including commitments) due during the current calendar month. Undated materials and labor are not included.
-- **Quotes** are references, not expenses. **Marking a material purchased does not create an expense**; record it once in Actual expenses.
-
-### Repair/purchase comparisons
-
-`payment = principal × (APR/12) / (1 − (1 + APR/12)^(-months))`, with APR expressed as a decimal rate. A zero-APR loan uses `principal/months`. Monthly payments are rounded to cents for display and total; lender final-payment corrections may vary by a few cents. Total = cash paid today + upfront fees + other estimated future costs + all scheduled loan payments. Do **not** enter the financed principal again as cash today.
-
-These estimates are **not** safety advice, vehicle valuation, financing approval, or a complete discounted lifetime cost comparison. Get written scope, actual loan terms, warranty and safety guidance from qualified professionals. No postponement is automatically recommended.
-
-## Priority model
-
-Explainable points:
-
-| Factor | Points |
-| --- | --- |
-| Urgency (0–4) | 10 per level |
-| Financial impact (0–4) | 4 per level |
-| Importance (0–4) | 5 per level |
-| Overdue / due within 7 days / within 30 days | +20 / +15 / +8 |
-| Each active project blocked by this one | +5, capped at +15 |
-| Budget ≤ $100 / ≤ $500 | +6 / +4 |
-| Work estimate ≤ 2 hours / ≤ 8 hours | +6 / +3 |
-
-Manual Do first / Automatic / Do later ranking groups take precedence over calculated scores. Projects are sortable by priority; the score is never generated by AI. The project dependency checkbox indicates another unfinished project is a prerequisite; it doesn't automatically change a project's completion state.
-
-## Data safety and storage
-
-Projects and attachment bytes are stored in browser **IndexedDB**; no server receives them. Different browsers and devices **do not sync**. IndexedDB can be cleared by browser/site-data cleanup, and on iOS PWA/browser storage may be evicted. **Export JSON backups regularly and before browser/device changes.** Restores validate version 1 shape and prompt before replacing your workspace. There is currently no automated merge or automatic backups.
-
-Photos are resized to JPEG at up to 1400 pixels on the longest side; PDFs are limited to 2 MB. Larger image uploads may be rejected to protect local storage. Exports embed attachments as base64 and therefore can be sizable. Uploaded files should not be placed in the public Git repository.
-
-PWA offline support caches the frontend after first successful load. On-device data is separate from that cache. If storage fails, the app visibly reports it rather than claiming a save succeeded.
-
-## Architecture
-
-- React 19, TypeScript, Vite 6; no component framework, state management package, backend, analytics, or shopping service.
-- `src/types.ts`: version 1 data model for future schema migrations/import mapping.
-- `src/logic.mjs`: independently testable calculation/policy logic.
-- `src/storage.ts`: IndexedDB persistence, JSON validation/export/restore and attachment processing.
-- `src/App.tsx`: compact screens and inline project editors.
-- `src/demo.ts`: fictional, user-opt-in sample projects.
-- `public/sw.js`: bounded same-origin offline cache.
-- `tests/logic.test.mjs`: Node built-in test runner.
-- `.github/workflows/verify-deploy.yml`: test/build/deploy pipeline.
-
-No dependency on Holiday Display Blueprint; potential future import could map inventory item IDs, images and prices into materials without making Blueprint mandatory.
-
-## Deferred
-
-Optional Supabase synchronization, multiuser roles, banking connections, affiliate/shopping APIs, AI prioritization, push notifications, and automatic purchases. No direct integration with the user's other apps.
-
-## Verification and data model notes
-
-See [QA and browser acceptance checklist](docs/QA.md) and [data model for future imports](docs/DATA_MODEL.md). If you host multiple apps on `jacobmgoodnight.github.io`, remember that subpaths share a browser origin; local IndexedDB is not encrypted isolation from JavaScript hosted at other paths on that same origin.
-
-
-## Replacement parts & maintenance shopping (v2)
-
-Open Maintenance → a task → Replacement parts to save the equipment model, filter dimensions, cartridge part number/SKU, quantity per service, on-hand stock, preferred store, price and product URL. A shopping panel lists due/soon shortages, with an option to include later tasks and copy a list. Amounts are user-entered planning estimates, never actual project spending or commitments. No purchases are made.
-
-Database snapshots now use schema version 2. Existing version-1 browser data and JSON backups are migrated in place on load/import; project information, service histories, and expenses are preserved. The IndexedDB database name is unchanged. Export a backup before major edits.
-
-
-## Equipment inventory & restock (v3)
-
-Under **Maintenance → Equipment**, save the location, manufacturer, model/serial, purchase/warranty dates and up to five compressed label photos for each appliance. The same equipment entry can be linked to multiple maintenance tasks. Equipment is not prepopulated as if owned.
-
-Filter/service tasks keep their previous free-text equipment description and optional standalone model number. Link a task to an equipment entry in its schedule editor to reuse label photos and exact model details.
-
-In **Replacement parts**, choose **Record restock +N** to confirm that N additional items are physically on hand. This only changes the inventory count; no expense, quote, purchase or bank transaction is generated. A completed service still does not automatically reduce inventory.
-
-Schema v3 migrates valid v1 and v2 browser snapshots and JSON backups without dropping parts, costs, history, or dates. Equipment photos are stored locally and embedded in exported JSON (therefore backups can be larger). Export a backup before changing browsers or clearing site data.
-
-
-## Guided maintenance and seasonal routines (v3, additive)
-
-**Maintenance → Upcoming maintenance** shows overdue and next-30-day tasks with a 60-day switch. Items without a real due date are shown as unscheduled, not overdue; usage-based thresholds are separate. **Done today** now opens a review flow for actual date, cost, usage, notes, receipt/photo, parts used and an explicitly optional inventory deduction. It does not purchase supplies or add maintenance spending to project financial totals.
-
-**Minimum stock alert** in each replacement-part editor is optional. Only explicitly configured thresholds create low-stock warnings; the shopping list now includes flagged shortages even when a service is months away. Price-unknown items remain price-unknown.
-
-**Seasonal home checklist** offers separate Spring/Summer/Fall/Winter suggestions suited to typical Midwestern maintenance. Suggestions are opt-in, avoid holiday-display wiring inventory and do not fabricate dates or service completions. Set a first due date yourself. Recurrence is yearly from each completed service.
-
-Service records can optionally contain a local receipt and used-part references without changing the v3 database version or invalidating older backups. Export/restore includes attached receipts; keep backups private.
-
-
-## Search, annual reports and device transfers
-
-**Maintenance → Equipment** searches appliance name, manufacturer, model and serial numbers, locations, and replacement-part SKUs on linked maintenance tasks. The warranty section lists expired or expiring-in-90-day equipment from user-entered dates.
-
-**Maintenance → History & spending** summarizes recorded maintenance service costs by year, month and equipment, with notes and receipt links. These totals are intentionally separate from Project expenses, because the same purchase may have been recorded in both places.
-
-**Backup & data** now includes a clearer two-step workflow. Download or use the operating-system Share sheet (where supported) to send a private JSON backup to Files or AirDrop; import it on the second device. Preview either **Merge only new records** (matches by stable IDs, does not overwrite existing edits and reports conflicts) or **Replace all data** (explicit confirmation). Last-export metadata is saved only on the local browser, and the app suggests backing up after changes. This is manual transfer—not automatic continuous sync. It needs no account or backend.
-
-An optional, privacy-preserving multi-device cloud sync with authentication and conflict resolution remains a separate future choice. Never store backups, appliance serials or home expenses in this public GitHub repository.
-
-
-## Tidy Today workspace, guided setup, calendar and home reference book
-
-The primary navigation remains **Today / Projects / Maintenance / Backup & data**. Today combines scheduled maintenance, project steps due this week and quick unblocked projects. Detailed financial overview is available in a collapsed section instead of overwhelming the home screen.
-
-Use **Quick add** from the header for an unchecked project step, an unscheduled or dated maintenance task, or a planned project; no full form is required. **Guided setup** on Today presents selectable equipment and standard routines. All suggestions are opt-in and install without invented model numbers, completed service history or due dates.
-
-Open **Maintenance → Upcoming & supplies → Calendar reminders** to export an iCalendar (.ics) file. It contains one all-day event for each maintenance task with a real next due date and a reminder one day before. Import the file in Apple, Google or Outlook Calendar. It is a snapshot, not live calendar sync: after completing service, re-export and manage old calendar entries as needed.
-
-Open **Maintenance → Home reference** for one searchable view of equipment photos, manuals, warranty dates, linked part numbers, receipts and project attachments. Save PDF or image manuals in **Maintenance → Equipment → [item] → Manuals & warranty files**. These are saved locally, included in JSON backups, and are never uploaded to the public repository.
-
-
-## Optional household sync, notifications, QR labels and weekly recap
-
-**Today → Reminders & weekly recap** shows real 7-day maintenance/warranty alerts. Browser notifications require explicit permission and only run on request while the app is open; the app does not claim background push delivery. Weekly recap is generated locally from dated service and spending records and can be copied or shared; it is not automatically emailed. Project and maintenance expenses may overlap.
-
-**Maintenance → Equipment** now supports mobile rear-camera label capture (when the device/browser offers it) and **Create printable QR label**. The label encodes only the public app URL plus an opaque equipment ID. QR generation is opt-in and uses the public goQR image service, which receives that URL but not appliance names, serial numbers or photos. A scanned link works on another device only after that device has the household data.
-
-**Backup & data → Optional household sync** supports a dedicated Supabase backend after one-time setup. The SQL schema is in `supabase/home-project-planner.sql` and is NOT automatically deployed to unrelated projects. It includes signed-in household membership, owner-generated one-use invitations, RLS access controls, and optimistic version checks. Once a dedicated project is configured, choose a household and initialize the cloud from a local backup; other signed-in household devices can use the shared copy. Auto-sync polls while the app is open and on reconnect. Concurrent updates to the same household snapshot are paused for review, never silently overwritten. Sign-in requires the project's configured email provider. Never enter a service-role/secret key.
-
-The household owner can list members and revoke future cloud access. This does not erase content already downloaded or exported by another household member.
-
-On devices with notification support, enabling notifications also permits one brief reminder per day when opening the app, if upcoming maintenance/warranty items exist. This is not push while closed.
-
-On mobile, Equipment and service-completion screens offer separate **Take photo** and **Choose existing photo/PDF** controls, rather than forcing the camera.
-
-
-### Shared backend connection (October 29, 2026)
-
-The owner approved provisioning Home Project Planner inside their **existing general Supabase project**, because their free organization had reached the two-project limit. Migration `hpp_private_household_sync_20261029` was successfully applied to `rwqclcpmtuebxndadkxv`, creating only `public.hpp_*` objects. The app now embeds the public Supabase project URL and **publishable** key; no private credential or service-role key is shipped. Existing `gw_*`, `hdb_*`, and other application objects were left intact. Users still explicitly sign up/sign in and initialize or join a household under **Backup & data**; no existing IndexedDB records are auto-uploaded at first sign-in.
-
-Home snapshots are restricted to authenticated household members; the browser has **no direct update privileges**. The `hpp_cas_snapshot` function checks membership, schema shape, size, and expected revision before committing. Invitations are one-use and seven days long; owner-only member management can revoke future cloud access. Backups remain advised. Supabase Auth's configured email confirmation and allowed redirect URLs can affect account onboarding.
-
-**Auto-sync lifecycle:** The settings panel stays mounted while navigating Today/Projects/Maintenance, so opted-in device sync continues to check for changes while the app stays open, not only while Backup & data is selected. For password sign-up, add the exact Pages URL `https://jacobmgoodnight.github.io/home-project-planner/` to Supabase Auth → URL Configuration → Redirect URLs if email confirmation needs to return to this app. Auth URL configuration is shared with other apps using this project; do not replace their existing allowed entries.
+**Current next priority:** verify real cross-device login, data round-trip, and simultaneous offline conflict handling before adding more functionality. See the [roadmap](ROADMAP.md) for the short list.

@@ -1,54 +1,45 @@
-# Home Project Planner — practical roadmap
+# Home Project Planner — roadmap
 
-The product goal is **finish useful household work and avoid surprise spending**, not to become a generic task manager. Work in small, testable improvements, preserving local data on every release.
+**Mission:** Help a household finish useful work, remember equipment details and avoid surprise expenses. Keep the four existing navigation destinations. Features should be opt-in, locally useful, data-preserving and inexpensive to maintain.
 
-## Completed
-- [x] Project overview, priority explanations and manual overrides
-- [x] Tasks/checklists, forecasts, materials, quotes and financing calculator
-- [x] House maintenance routines, calendar-month scheduling and service history
-- [x] Replacement part details, on-hand stock, price-aware shopping list
-- [x] Equipment inventory, label photos, maintenance links and confirmed restocking
-- [x] Guided completion with actual costs, receipts, used parts and opt-in stock deduction
-- [x] Upcoming maintenance agenda (30/60 days) and low-stock thresholds
-- [x] Opt-in spring/summer/fall/winter home care templates
-- [x] Equipment search across appliance labels and linked replacement SKUs with warranty alerts
-- [x] Yearly actual service spending, receipt history and cost-by-equipment reports
-- [x] Manual cross-device share/import, non-destructive new-record merge previews and backup reminders
-- [x] Unified Today view: scheduled maintenance, dated project steps and quick wins
-- [x] Opt-in guided home/equipment setup and minimal Quick add
-- [x] iCalendar export of actual next maintenance due dates with one-day alerts
-- [x] Searchable home reference book with local manuals, labels, receipts and parts
-- [x] Versioned JSON export/restore, local IndexedDB, offline PWA and CI
+## Delivered
 
-## Next — high value, low complexity
-1. **Opt-in continuous sync, if requested.** Requires user-selected authentication and backend, private per-user access controls, encrypted transport, offline queues and conflict resolution. The app already has manual share/merge, no backend needed.
-2. **Restore safety and backups.** Add archive snapshots/undo checkpoints if browser storage grows; do not silently discard edits.
-3. **Focus the home screen.** One unified today/this-week work list combining home projects, due maintenance and small wins.
+- [x] Four-part interface: Today, Projects, Maintenance, Backup & data
+- [x] Transparent project priority, short tasks, dependencies, cost forecasts, quotes and repair-vs-replace comparisons
+- [x] Guided household setup, Quick add, optional seasonal routines and true calendar-month maintenance schedules
+- [x] Reviewed completion logs with receipts, real costs and explicit optional stock deduction
+- [x] Equipment/model/serial/part-number search, warranty alerts, label photos, local manuals and QR labels
+- [x] Maintenance history and year/month/equipment spending review
+- [x] Stock thresholds, shortage shopping lists and manual restock confirmation
+- [x] 30/60-day maintenance agenda and one-time .ics calendar export
+- [x] App-open opt-in browser reminders and manual weekly recap
+- [x] Versioned JSON backups, validated v1/v2/v3 imports, new-record-only merge previews and local-first offline PWA
+- [x] Owner-approved deployment of private \`hpp_*\` Supabase schema in an existing project; no changes to other apps' tables
+- [x] Signed-in household sharing, one-use invitations, owner access revocation, revision-guarded optional sync and manual conflict review
+- [x] Local demo load, clear and restore pause sync to prevent unintentional shared-household overwrites
 
-## Later — consider only if needed
-6. Compare multiple written repair/contractor quotes side-by-side and save vendor documents.
-8. Explicit, reviewed import from Holiday Display Blueprint and/or existing CSV, matching duplicates by stable IDs.
-9. Optional authenticated Supabase sync for sharing across devices **only when demanded**. Must preserve local-first behavior and clear conflict resolution.
-10. Offline-friendly install and phone UX audits; print/export a one-page household maintenance sheet.
+## Verify before relying on automatic sync (highest priority)
 
-## Not in scope without new user direction
-Bank feeds, automatic purchases, AI estimates, fabricated retailer prices, elaborate team roles and enterprise project-management features.
+- [ ] Confirm email sign-up / confirmation and redirect behavior for the deployed Pages URL.
+- [ ] Create a real household using a test account and **back up data before the initial upload**.
+- [ ] Confirm a small edit round-trips Windows → phone → Windows while app is open, both via Sync now and automatic check.
+- [ ] Test edits while offline on *both* devices. Confirm conflict is flagged, neither copy is silently overwritten, and exports/recovery work.
+- [ ] Test owner/member/outsider role isolation with **two real authenticated test accounts**, one-use invitations, expiry and revocation. Server-side simulated outsider tests and static permission checks passed, but these do not replace real-user acceptance.
+- [ ] Test large image/receipt attachments across devices, app reload, auth session renewal and storage quota limits.
+- [ ] Run iPhone and desktop keyboard/screen-reader checks and PWA offline reload tests.
 
-## Engineering release checklist
-Run `npm run check`, verify migration of v1/v2/v3 backups, test on mobile, inspect GitHub Pages deploy, and never replace user IndexedDB data from demo fixtures.
+## Practical improvements after field testing
 
+1. **Safer two-device conflicts:** A guided comparison of changed records, with export and explicit selection before applying anything. Preserve an undo/restore checkpoint.
+2. **Simpler first-time sync:** One progress-oriented guided setup in Backup & data (sign in → create household → first upload → connect second device). Hide rare maintenance controls under details.
+3. **Device/privacy isolation:** Consider a dedicated application origin to separate browser IndexedDB and auth tokens from other Pages apps on the same GitHub Pages origin.
+4. **Attachment & backup health:** Warn about cloud snapshot size and attachments before hitting the limit; offer backup-health checks.
+5. **Only on request:** Real push reminders while closed, recurring email summaries, Holiday Display Blueprint import and optional integrations with external apps.
 
-## Sync and engagement status (2026-10-29)
-- [x] Implement secure-database SQL schema and gated household sync UI; dedicated Supabase project provisioning and RLS testing remain required before anyone can enable it.
-- [x] Opt-in household invites with 7-day one-time codes, safe cloud revisions and local-first behavior.
-- [x] Browser-in-use reminder check and local shareable weekly recap (not unattended push/email).
-- [x] Mobile camera capture on supported devices and opt-in QR equipment labels.
-- [ ] Provision a dedicated Supabase project in the owner's selected organization; apply schema; verify RLS as owner/member/outsider; test two devices and conflicting offline changes.
-- [ ] For future unattended reminders: implement a permissioned push/subscription server and explicit opt-in, rather than pretending browser notifications work when the PWA is closed.
+## Not planned without a specific need
 
-- [x] Add explicit per-household, per-user device binding to prevent cross-household auto-uploads.
+Bank access, automatic purchases, AI-generated prices/repair estimates, compulsory accounts, separate navigation tabs for every feature, or automatic import from other applications.
 
+## Release requirements
 
-- [x] Owner-approved reuse of general free Supabase backend with separate `hpp_*` tables and no modifications to other apps.
-- [x] Deploy hardened household schema and project publishable-key bootstrap without service credentials.
-- [ ] Finish user sign-in / email confirmation in both browsers; create a household, upload a verified backup, and test actual two-device round trip including conflicting offline edits.
+Run \`npm run check\`, inspect the actual GitHub Pages deployment, validate v1/v2/v3 import behavior, and complete the relevant manual checks in [docs/QA.md](docs/QA.md). Never populate demo data without an explicit user action or silently overwrite existing IndexedDB or cloud records.
