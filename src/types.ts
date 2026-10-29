@@ -24,16 +24,21 @@ export interface Project {
   attachments: Attachment[]; createdAt: string; updatedAt: string;
 }
 export interface ServiceEntry { id: string; date: string; hours: number | null; costCents: number; notes: string }
+export interface MaintenanceSupply {
+  id: string; name: string; size: string; partNumber: string;
+  quantity: number; onHand: number; unitCents: number;
+  store: string; url: string; notes: string;
+}
 export interface MaintenanceItem {
   id: string; title: string; asset: string; category: Category; projectId: string;
   intervalDays: number; intervalMonths?: number; firstDueDate?: string; templateKey?: string;
   intervalHours: number; currentHours: number | null;
-  warrantyUntil: string; notes: string; entries: ServiceEntry[];
+  warrantyUntil: string; notes: string; modelNumber: string; supplies: MaintenanceSupply[]; entries: ServiceEntry[];
 }
-export interface Database { version: 1; demo: boolean; projects: Project[]; maintenance: MaintenanceItem[] }
+export interface Database { version: 2; demo: boolean; projects: Project[]; maintenance: MaintenanceItem[] }
 export function uid() { return crypto.randomUUID(); }
 export const today = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-export const emptyDatabase = (): Database => ({ version: 1, demo: false, projects: [], maintenance: [] });
+export const emptyDatabase = (): Database => ({ version: 2, demo: false, projects: [], maintenance: [] });
 export function newProject(): Project {
   const now = new Date().toISOString();
   return { id: uid(), name: '', category: 'Home', status: 'Planned', description: '', targetDate: '', nextAction: '',
@@ -44,5 +49,5 @@ export function newProject(): Project {
 }
 export function newMaintenance(): MaintenanceItem {
   return { id: uid(), title: '', asset: '', category: 'Maintenance', projectId: '',
-    intervalDays: 0, intervalMonths: 0, firstDueDate: '', templateKey: '', intervalHours: 0, currentHours: null, warrantyUntil: '', notes: '', entries: [] };
+    intervalDays: 0, intervalMonths: 0, firstDueDate: '', templateKey: '', intervalHours: 0, currentHours: null, warrantyUntil: '', notes: '', modelNumber: '', supplies: [], entries: [] };
 }

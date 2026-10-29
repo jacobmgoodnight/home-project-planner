@@ -118,3 +118,10 @@ Optional Supabase synchronization, multiuser roles, banking connections, affilia
 ## Verification and data model notes
 
 See [QA and browser acceptance checklist](docs/QA.md) and [data model for future imports](docs/DATA_MODEL.md). If you host multiple apps on `jacobmgoodnight.github.io`, remember that subpaths share a browser origin; local IndexedDB is not encrypted isolation from JavaScript hosted at other paths on that same origin.
+
+
+## Replacement parts & maintenance shopping (v2)
+
+Open Maintenance → a task → Replacement parts to save the equipment model, filter dimensions, cartridge part number/SKU, quantity per service, on-hand stock, preferred store, price and product URL. A shopping panel lists due/soon shortages, with an option to include later tasks and copy a list. Amounts are user-entered planning estimates, never actual project spending or commitments. No purchases are made.
+
+Database snapshots now use schema version 2. Existing version-1 browser data and JSON backups are migrated in place on load/import; project information, service histories, and expenses are preserved. The IndexedDB database name is unchanged. Export a backup before major edits.

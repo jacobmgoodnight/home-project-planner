@@ -28,3 +28,10 @@ Future inventory import may use a mapping `{sourceApp, sourceId, projectId, mate
 - `src/maintenance-presets.ts` contains opt-in templates; never seed real browser records silently on deploy.
 - `intervalMonths`, `firstDueDate`, and `templateKey` are optional version-1 fields for compatibility with existing exports and IndexedDB; never invent last service dates, costs or equipment ownership.
 - Monthly recurrence uses calendar months; first due dates are not completed services. Check scheduling and duplicate detection tests before merging changes.
+
+
+## Maintenance replacement parts (v2)
+
+- Database.version is now 2. Use the pure upgradeSnapshot function in src/maintenance-support.mjs to migrate valid v1 snapshots; validate after upgrade before any save. Preserve the IndexedDB name and key so prior browser data remains available.
+- Maintenance supplies record manually entered part identifiers, size, quantity, stock, store, URL and optional price; never invent compatible products or amounts. They are NOT actual expense or purchase records.
+- The maintenance shopping view uses due/soon scheduling and stock shortages, with an optional all-tasks filter. No automatic buying or deductions from on-hand stock.

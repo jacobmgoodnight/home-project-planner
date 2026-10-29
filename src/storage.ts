@@ -1,5 +1,6 @@
 import type { Database, Project, MaintenanceItem } from './types';
 import { CATEGORIES, STATUSES } from './types';
+import { upgradeSnapshot } from './maintenance-support.mjs';
 const DB_NAME = 'home-project-planner-v1';
 const STORE = 'snapshots';
 const KEY = 'main';
@@ -27,10 +28,14 @@ async function transaction<T>(mode: IDBTransactionMode, worker:(store:IDBObjectS
   });
 }
 export async function load():Promise<Database|null> {
-  return transaction<Database|null>('readonly',(store,done)=>{
+  const stored=await transaction<unknown>('readonly',(store,done)=>{
     const req=store.get(KEY);
     req.onsuccess=()=>done(req.result??null);
   });
+  if(stored===null)return null;
+  const migrated=upgradeSnapshot(stored);
+  if(!validateBackup(migrated))throw new Error('Stored data has an unsupported or damaged format. No changes were made.');
+  return migrated;
 }
 export async function save(value:Database):Promise<void> {
   return transaction<void>('readwrite',(store,done)=>{
@@ -66,16 +71,24 @@ function checkProject(v:unknown):v is Project {
   };
   return Object.entries(fieldValidations).every(([key,valid])=>array(v[key])&&v[key].every(valid)&&uniqueIds(v[key]));
 }
+function checkSupply(v:unknown):boolean {
+  return simple(v,['id','name','size','partNumber','quantity','onHand','unitCents','store','url','notes']) &&
+    id(v.id) && ['name','size','partNumber','store','notes'].every(k=>text(v[k])) &&
+    Number.isSafeInteger(v.quantity) && Number(v.quantity)>0 && Number(v.quantity)<=9999 &&
+    Number.isSafeInteger(v.onHand) && Number(v.onHand)>=0 && Number(v.onHand)<=9999 &&
+    cents(v.unitCents) && optUrl(v.url);
+}
 function checkMaintenance(v:unknown):v is MaintenanceItem {
   return simple(v,['id','title','asset','category','projectId','intervalDays','intervalHours','currentHours','warrantyUntil','notes','entries'])&&
     id(v.id)&&['title','asset','projectId','warrantyUntil','notes'].every(k=>text(v[k]))&&CATEGORIES.includes(v.category as typeof CATEGORIES[number])&&
     nonnegative(v.intervalDays)&&(v.intervalMonths===undefined||(Number.isSafeInteger(v.intervalMonths)&&nonnegative(v.intervalMonths)&&Number(v.intervalMonths)<=120))&&
     (v.firstDueDate===undefined||(text(v.firstDueDate)&&(v.firstDueDate===''||/^\d{4}-\d{2}-\d{2}$/.test(v.firstDueDate))))&&
-    (v.templateKey===undefined||(text(v.templateKey)&&v.templateKey.length<100))&&nonnegative(v.intervalHours)&&(v.currentHours===null||nonnegative(v.currentHours))&&
+    (v.templateKey===undefined||(text(v.templateKey)&&v.templateKey.length<100))&&text(v.modelNumber)&&v.modelNumber.length<500&&
+    array(v.supplies)&&v.supplies.length<=500&&uniqueIds(v.supplies)&&v.supplies.every(checkSupply)&&nonnegative(v.intervalHours)&&(v.currentHours===null||nonnegative(v.currentHours))&&
     array(v.entries)&&uniqueIds(v.entries)&&v.entries.every(x=>simple(x,['id','date','hours','costCents','notes'])&&id(x.id)&&text(x.date)&&text(x.notes)&&cents(x.costCents)&&(x.hours===null||nonnegative(x.hours)));
 }
 export function validateBackup(data:unknown):data is Database {
-  return object(data)&&data.version===1&&typeof data.demo==='boolean'&&array(data.projects)&&array(data.maintenance)&&
+  return object(data)&&data.version===2&&typeof data.demo==='boolean'&&array(data.projects)&&array(data.maintenance)&&
     data.projects.length<=10000&&data.maintenance.length<=10000&&data.projects.every(checkProject)&&data.maintenance.every(checkMaintenance)&&
     uniqueIds(data.projects)&&uniqueIds(data.maintenance);
 }
@@ -83,8 +96,9 @@ export async function readBackup(file:File):Promise<Database> {
   if(file.size>60*1024*1024)throw new Error('Backup is larger than the 60 MB import limit.');
   let parsed:unknown;
   try {parsed=JSON.parse(await file.text());}catch{throw new Error('This file is not valid JSON.');}
-  if(!validateBackup(parsed))throw new Error('Invalid or unsupported backup. Expected a version 1 Home Project Planner export.');
-  return parsed;
+  const migrated=upgradeSnapshot(parsed);
+  if(!validateBackup(migrated))throw new Error('Invalid or unsupported backup. Expected a valid version 1 or 2 Home Project Planner export.');
+  return migrated;
 }
 export function downloadBackup(data:Database) {
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
