@@ -57,15 +57,25 @@ export function sortProjects(projects,today) {
   return [...projects].sort((a,b)=>(rank[a.override]-rank[b.override]) ||
     (priority(b,projects,today).score-priority(a,projects,today).score) || a.name.localeCompare(b.name));
 }
-export function dueMaintenance(item,today) {
-  const last=[...item.entries].sort((a,b)=>b.date.localeCompare(a.date))[0];
-  const validLast=last && /^\d{4}-\d{2}-\d{2}$/.test(last.date) && Number.isFinite(Date.parse(`${last.date}T12:00:00Z`));
-  const dueDate=validLast && item.intervalDays>0 ?
-    new Date(Date.parse(`${last.date}T12:00:00Z`)+item.intervalDays*86400000).toISOString().slice(0,10):'';
-  const dueHours=last?.hours!==null && last?.hours!==undefined && item.intervalHours>0 ? last.hours+item.intervalHours : null;
-  const dateRemaining=dueDate?dayDiff(dueDate,today):null;
-  const hourRemaining=dueHours!==null && item.currentHours!==null?dueHours-item.currentHours:null;
-  const due=(dateRemaining!==null && dateRemaining<=0)||(hourRemaining!==null && hourRemaining<=0);
-  const soon=!due&&((dateRemaining!==null&&dateRemaining<=30)||(hourRemaining!==null&&hourRemaining<=10));
-  return {due,soon,dueDate,dueHours,dateRemaining,hourRemaining};
+/** Calendar months use month-end clamping instead of approximate day counts. */
+export function addCalendarMonths(date,months){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isSafeInteger(months)||months<0)return '';
+ const [y,m,d]=date.split('-').map(Number);
+ const original=new Date(Date.UTC(y,m-1,d));
+ if(original.toISOString().slice(0,10)!==date)return '';
+ const t=new Date(Date.UTC(y,m-1+months,1));
+ const last=new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth()+1,0)).getUTCDate();
+ t.setUTCDate(Math.min(d,last));return t.toISOString().slice(0,10);
+}
+export function dueMaintenance(item,today){
+ const valid=date=>/^\d{4}-\d{2}-\d{2}$/.test(date||'')&&Number.isFinite(Date.parse(date+'T12:00:00Z'))&&new Date(Date.parse(date+'T12:00:00Z')).toISOString().slice(0,10)===date;
+ const last=[...item.entries].filter(x=>valid(x.date)).sort((a,b)=>b.date.localeCompare(a.date))[0];
+ const months=Number(item.intervalMonths)||0;
+ const dueDate=last?(months>0?addCalendarMonths(last.date,months):item.intervalDays>0?new Date(Date.parse(last.date+'T12:00:00Z')+item.intervalDays*86400000).toISOString().slice(0,10):''):(valid(item.firstDueDate)?item.firstDueDate:'');
+ const dueHours=last?.hours!==null&&last?.hours!==undefined&&item.intervalHours>0?last.hours+item.intervalHours:null;
+ const dateRemaining=dueDate?dayDiff(dueDate,today):null;
+ const hourRemaining=dueHours!==null&&item.currentHours!==null?dueHours-item.currentHours:null;
+ const due=(dateRemaining!==null&&dateRemaining<=0)||(hourRemaining!==null&&hourRemaining<=0);
+ const soon=!due&&((dateRemaining!==null&&dateRemaining<=30)||(hourRemaining!==null&&hourRemaining<=10));
+ return {due,soon,dueDate,dueHours,dateRemaining,hourRemaining};
 }

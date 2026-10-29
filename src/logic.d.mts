@@ -9,4 +9,5 @@ export function monthlyPayment(principalCents:number,aprPercent:number,months:nu
 export function decisionCost(o:DecisionOption):{paymentCents:number;loanTotalCents:number;interestCents:number;totalCents:number};
 export function priority(p:Project,projects:Project[],today:string):{score:number;reasons:string[]};
 export function sortProjects(projects:Project[],today:string):Project[];
+export function addCalendarMonths(date:string,months:number):string;
 export function dueMaintenance(item:MaintenanceItem,today:string):{due:boolean;soon:boolean;dueDate:string;dueHours:number|null;dateRemaining:number|null;hourRemaining:number|null};

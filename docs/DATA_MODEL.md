@@ -11,3 +11,5 @@ Materials contain user-entered quantities/prices; receipts are `attachments` and
 Maintenance records can link optionally to a project, but remain independent. Each has service entries and interval days/usage. Future integration could map a Holiday Display Blueprint item to a material with an optional provenance record `{sourceApp:'holiday-display-blueprint', sourceId, importedAt}`. Do not require that application or ingest its data automatically.
 
 Backup imports should remain versioned. Changing any required object field requires a migration path or an explicit compatible parser; never silently overwrite unsupported backups.
+
+Maintenance optional v1 fields: `intervalMonths` (true month arithmetic, takes precedence over day interval), `firstDueDate` (user-set pending due date before any service is logged), and `templateKey` (deduplicates opt-in household presets). Older JSON backups without these fields remain valid. Templates never create completed service entries automatically.

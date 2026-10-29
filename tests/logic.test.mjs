@@ -26,3 +26,24 @@ test('blank service dates cannot break scheduled maintenance',()=>{
  const m={intervalDays:90,intervalHours:0,currentHours:null,entries:[{date:'',hours:null}]};
  const due=dueMaintenance(m,'2026-10-29');assert.equal(due.dueDate,'');assert.equal(due.due,false);
 });
+
+test('calendar months clamp to February and leap years',async()=>{
+ const {addCalendarMonths}=await import('../src/logic.mjs');
+ assert.equal(addCalendarMonths('2027-01-31',1),'2027-02-28');
+ assert.equal(addCalendarMonths('2028-01-31',1),'2028-02-29');
+ assert.equal(addCalendarMonths('2026-10-29',4),'2027-02-28');
+});
+test('monthly and four-month maintenance use real calendar months',()=>{
+ const m={intervalMonths:1,intervalDays:0,intervalHours:0,currentHours:null,entries:[{date:'2026-10-15',hours:null}],firstDueDate:''};
+ assert.equal(dueMaintenance(m,'2026-10-29').dueDate,'2026-11-15');
+ assert.equal(dueMaintenance({...m,intervalMonths:4},'2026-10-29').dueDate,'2027-02-15');
+});
+test('an added preset has no invented maintenance date',()=>{
+ const m={intervalMonths:4,intervalDays:0,intervalHours:0,currentHours:null,entries:[],firstDueDate:''};
+ const d=dueMaintenance(m,'2026-10-29');assert.equal(d.dueDate,'');assert.equal(d.due,false);assert.equal(d.soon,false);
+});
+test('first due date does not fabricate completed service history',()=>{
+ const m={intervalMonths:4,intervalDays:0,intervalHours:0,currentHours:null,entries:[],firstDueDate:'2026-11-02'};
+ assert.equal(dueMaintenance(m,'2026-10-29').dueDate,'2026-11-02');
+ assert.equal(dueMaintenance({...m,entries:[{date:'2026-10-10',hours:null}]},'2026-10-29').dueDate,'2027-02-10');
+});

@@ -69,7 +69,9 @@ function checkProject(v:unknown):v is Project {
 function checkMaintenance(v:unknown):v is MaintenanceItem {
   return simple(v,['id','title','asset','category','projectId','intervalDays','intervalHours','currentHours','warrantyUntil','notes','entries'])&&
     id(v.id)&&['title','asset','projectId','warrantyUntil','notes'].every(k=>text(v[k]))&&CATEGORIES.includes(v.category as typeof CATEGORIES[number])&&
-    nonnegative(v.intervalDays)&&nonnegative(v.intervalHours)&&(v.currentHours===null||nonnegative(v.currentHours))&&
+    nonnegative(v.intervalDays)&&(v.intervalMonths===undefined||(Number.isSafeInteger(v.intervalMonths)&&nonnegative(v.intervalMonths)&&Number(v.intervalMonths)<=120))&&
+    (v.firstDueDate===undefined||(text(v.firstDueDate)&&(v.firstDueDate===''||/^\d{4}-\d{2}-\d{2}$/.test(v.firstDueDate))))&&
+    (v.templateKey===undefined||(text(v.templateKey)&&v.templateKey.length<100))&&nonnegative(v.intervalHours)&&(v.currentHours===null||nonnegative(v.currentHours))&&
     array(v.entries)&&uniqueIds(v.entries)&&v.entries.every(x=>simple(x,['id','date','hours','costCents','notes'])&&id(x.id)&&text(x.date)&&text(x.notes)&&cents(x.costCents)&&(x.hours===null||nonnegative(x.hours)));
 }
 export function validateBackup(data:unknown):data is Database {

@@ -27,3 +27,11 @@
 ## Known boundaries
 
 No cross-device sync, external reminders, permission model, live price checks or automation. Data stored in the shared `jacobmgoodnight.github.io` browser origin: code served from other paths under the same origin has browser-origin access to IndexedDB, so only host trusted apps there and do not treat this as encrypted vault storage.
+
+## Household maintenance checks
+- [ ] Selecting starter routines adds only checked items; repeat import never duplicates existing ones.
+- [ ] No starter task is overdue before the user sets its initial date or logs actual service.
+- [ ] One-month and four-month recurrence handle February and leap-year month ends.
+- [ ] Done today is a real service entry, sets a new due date, and can be undone by removing the entry.
+- [ ] Existing version 1 maintenance records with day-based intervals remain readable and back up / restore correctly.
+- [ ] Small-screen maintenance cards and preset selection remain accessible.

@@ -26,7 +26,8 @@ export interface Project {
 export interface ServiceEntry { id: string; date: string; hours: number | null; costCents: number; notes: string }
 export interface MaintenanceItem {
   id: string; title: string; asset: string; category: Category; projectId: string;
-  intervalDays: number; intervalHours: number; currentHours: number | null;
+  intervalDays: number; intervalMonths?: number; firstDueDate?: string; templateKey?: string;
+  intervalHours: number; currentHours: number | null;
   warrantyUntil: string; notes: string; entries: ServiceEntry[];
 }
 export interface Database { version: 1; demo: boolean; projects: Project[]; maintenance: MaintenanceItem[] }
@@ -43,5 +44,5 @@ export function newProject(): Project {
 }
 export function newMaintenance(): MaintenanceItem {
   return { id: uid(), title: '', asset: '', category: 'Maintenance', projectId: '',
-    intervalDays: 0, intervalHours: 0, currentHours: null, warrantyUntil: '', notes: '', entries: [] };
+    intervalDays: 0, intervalMonths: 0, firstDueDate: '', templateKey: '', intervalHours: 0, currentHours: null, warrantyUntil: '', notes: '', entries: [] };
 }

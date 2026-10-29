@@ -23,3 +23,8 @@ Inspired by the user's existing GlowRoute/Goodnights responsive GitHub Pages app
 
 ## Later integration
 Future inventory import may use a mapping `{sourceApp, sourceId, projectId, materialId}` and explicit user imports. It must not require another app, credentials or cloud services.
+
+## Maintenance starter checklist
+- `src/maintenance-presets.ts` contains opt-in templates; never seed real browser records silently on deploy.
+- `intervalMonths`, `firstDueDate`, and `templateKey` are optional version-1 fields for compatibility with existing exports and IndexedDB; never invent last service dates, costs or equipment ownership.
+- Monthly recurrence uses calendar months; first due dates are not completed services. Check scheduling and duplicate detection tests before merging changes.

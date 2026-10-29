@@ -12,10 +12,19 @@ Focus on your next action, record what you've actually spent, and compare option
 - **Cost planning:** budgets; purchased/unpurchased material estimates; actual cash expenses; explicitly committed but unpaid expenses; other future estimates; labor estimate and contingency. Displays budget headroom and total forecast.
 - **Quotes:** manual written quote comparison with supplier and source links. Quotes never automatically count as purchases.
 - **Repair vs. replace:** manual scenario builder, cash/financed cost breakdown, nominal APR, amortizing payments and total-of-payments. Safety and financial assumptions are visible.
-- **Maintenance:** recurring day or usage intervals, warranty dates and service log. No external notifications.
+- **Maintenance:** selectable household starter checklist, calendar-month/day/usage intervals, first due dates, quick **Done today** logs, warranties and service history. No external notifications.
 - **Attachments:** on-device compressed photos and small PDF receipts. Included in JSON export.
 - **Backup:** full versioned JSON export and validated replace-only restore, plus optional fictional sample projects.
 - **Installable PWA:** browser installation and offline caching after a successful first online load.
+
+
+## Household maintenance starter checklist
+
+Open **Maintenance → Household checklist** and choose the tasks appropriate for your home. Monthly HVAC filter checks/changes, four-month refrigerator drinking-water filter changes, monthly smoke/CO alarm tests and other essentials are preselected; optional equipment is NOT assumed. Confirm the list before adding. No dates or service completions are invented. Set a **First due date** or log the real **last completed service** before alerts begin. **Done today** starts a new interval from today's actual work; an accidental entry can be deleted in Service history. Existing records are preserved and duplicate presets are skipped.
+
+Intervals are editable and need to follow equipment instructions. ENERGY STAR recommends checking HVAC filters monthly and replacing when dirty, at least every three months ([ENERGY STAR](https://www.energystar.gov/saveathome/heating-cooling)). GE commonly recommends refrigerator water-filter replacement after six months or earlier for low flow; the four-month preset is a user preference, NOT a GE specification ([GE](https://products.geappliances.com/appliance/gea-support-search-content?contentId=21284)). Test smoke alarms monthly ([USFA](https://www.usfa.fema.gov/prevention/home-fires/prepare-for-fire/smoke-alarms/index.html)). Clean dryer lint screens every load, regardless of the scheduled vent check ([CPSC](https://www.cpsc.gov/s3fs-public/5022.pdf)).
+
+Optional version-1 maintenance fields are backward-compatible with existing local IndexedDB data and older backup files. Browser data is not automatically replaced by a GitHub Pages update.
 
 ## Local development
 
