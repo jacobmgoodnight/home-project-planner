@@ -3,6 +3,7 @@ import type { ChangeEvent } from 'react';
 import type { Attachment,EquipmentItem,MaintenanceItem } from './types';
 import { newEquipment,uid,today } from './types';
 import { attachmentFromFile } from './storage';
+import { findEquipment,expiringWarranties } from './home-insights.mjs';
 
 interface Props {
  items:EquipmentItem[];
@@ -24,7 +25,12 @@ export function EquipmentInventory({items,maintenance,change,unlink,onBack,initi
  const [selected,setSelected]=useState<string|null>(initialSelected||null);
  const [notice,setNotice]=useState('');
  const [uploading,setUploading]=useState(false);
+ const [query,setQuery]=useState('');
+ const [filter,setFilter]=useState<'all'|'warranty'>('all');
  const item=items.find(i=>i.id===selected);
+ const warranties=expiringWarranties(items,today(),90);
+ const warningIds=new Set(warranties.map(w=>w.item.id));
+ const shown=findEquipment(items,maintenance,query).filter(e=>filter==='all'||warningIds.has(e.id));
  const patch=(id:string,update:Partial<EquipmentItem>)=>change(rows=>rows.map(r=>r.id===id?{...r,...update}:r));
  function add(){const equipment={...newEquipment(),name:'New equipment'};change(rows=>[...rows,equipment]);setSelected(equipment.id);}
  function remove(){if(!item)return;const count=maintenance.filter(m=>m.equipmentId===item.id).length;
@@ -74,10 +80,12 @@ export function EquipmentInventory({items,maintenance,change,unlink,onBack,initi
  return <div className="equipment-page">
   <button className="back-link" onClick={onBack}>← Maintenance</button>
   <div className="page-heading"><div><h1>Equipment at home</h1><p>One quick reference for models, serial labels, locations and warranties.</p></div><button className="button primary" onClick={add}>+ Add equipment</button></div>
-  <p className="subtle">Nothing has been assumed about your appliances. Add the ones you service or need parts for.</p>
-  {items.length?<div className="equipment-grid">{items.map(e=><button key={e.id} className="panel equipment-tile" onClick={()=>{setNotice('');setSelected(e.id);}}>
+  <p className="subtle">Nothing has been assumed about your appliances. Search by model, serial, location or linked part number.</p>
+  <div className="equipment-search"><input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search equipment, model, serial, part SKU…" aria-label="Search equipment and linked replacement parts"/><div className="filter-chips"><button className={filter==='all'?'active':''} onClick={()=>setFilter('all')}>All ({items.length})</button><button className={filter==='warranty'?'active':''} onClick={()=>setFilter('warranty')}>Warranty alerts ({warranties.length})</button></div></div>
+  {warranties.length>0&&<section className="panel warranty-alert-panel"><h2>Warranty alerts</h2><p className="subtle">Expired or expiring within 90 days, based on your saved dates.</p><div className="warranty-alert-list">{warranties.map(w=><button key={w.item.id} onClick={()=>setSelected(w.item.id)}><strong>{w.item.name||'Equipment'}</strong><span>{w.daysRemaining<0?'Expired '+Math.abs(w.daysRemaining)+' days ago':w.daysRemaining===0?'Expires today':'Expires in '+w.daysRemaining+' days'} · {w.item.warrantyUntil}</span></button>)}</div></section>}
+  {shown.length?<div className="equipment-grid">{shown.map(e=><button key={e.id} className="panel equipment-tile" onClick={()=>{setNotice('');setSelected(e.id);}}>
     <span className="equipment-symbol">▣</span><strong>{e.name||'Unnamed equipment'}</strong><small>{[e.manufacturer,e.model].filter(Boolean).join(' · ')||'Model not recorded'}</small><small>{e.location||'Location not recorded'} · {e.photos.length} label photo(s)</small>
-    <span className="equipment-open">Details →</span>
-  </button>)}</div>:<section className="panel"><h2>Start with one appliance</h2><p>Try the refrigerator, HVAC system, or theater projector. Enter your actual model and photograph its label.</p><button className="button primary" onClick={add}>Add your first equipment item</button></section>}
+    <span className="equipment-open">{warningIds.has(e.id)?'⚠ Warranty attention · ':''}Details →</span>
+  </button>)}</div>:items.length?<section className="panel"><h2>No matches found</h2><p>Try another model number, part SKU or location.</p><button className="button secondary" onClick={()=>{setQuery('');setFilter('all');}}>Show all equipment</button></section>:<section className="panel"><h2>Start with one appliance</h2><p>Try the refrigerator, HVAC system, or theater projector. Enter your actual model and photograph its label.</p><button className="button primary" onClick={add}>Add your first equipment item</button></section>}
  </div>;
 }
