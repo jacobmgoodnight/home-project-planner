@@ -42,11 +42,11 @@ create policy "households read own memberships" on public.hpp_households for sel
  exists(select 1 from public.hpp_members m where m.household_id=id and m.user_id=(select auth.uid()))
 );
 create policy "snapshots read own memberships" on public.hpp_snapshots for select to authenticated using (
- exists(select 1 from public.hpp_members m where m.household_id=household_id and m.user_id=(select auth.uid()))
+ exists(select 1 from public.hpp_members m where m.household_id=public.hpp_snapshots.household_id and m.user_id=(select auth.uid()))
 );
 create policy "snapshots update own memberships" on public.hpp_snapshots for update to authenticated
- using (exists(select 1 from public.hpp_members m where m.household_id=household_id and m.user_id=(select auth.uid())))
- with check (exists(select 1 from public.hpp_members m where m.household_id=household_id and m.user_id=(select auth.uid())));
+ using (exists(select 1 from public.hpp_members m where m.household_id=public.hpp_snapshots.household_id and m.user_id=(select auth.uid())))
+ with check (exists(select 1 from public.hpp_members m where m.household_id=public.hpp_snapshots.household_id and m.user_id=(select auth.uid())));
 -- Invites are not exposed to client SELECT, INSERT, UPDATE or DELETE at all.
 revoke all on public.hpp_households,public.hpp_members,public.hpp_snapshots,public.hpp_invites from anon,authenticated;
 grant select on public.hpp_households,public.hpp_members to authenticated;
