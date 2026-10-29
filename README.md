@@ -30,25 +30,19 @@ npm run build
 
 Open the Vite local URL (normally `http://localhost:5173`). The project ships with **no actual private home, repair, budget or vehicle data**. To see illustrative projects, use **Backup & data → Load demo workspace**. All demo projects and amounts are fictional, not verified prices.
 
-## Publish at GitHub Pages
+## Deploy and run
 
-1. Create a **new, empty public repository** named `home-project-planner` under `jacobmgoodnight` (no initial README or license is necessary). Publish **only** this repository's source, never your personal exported backups.
-2. In the unzipped project folder:
+The full MVP has been committed to [this repository](https://github.com/jacobmgoodnight/home-project-planner). No manual ZIP upload, `git init`, or `git push` is needed for this release.
 
-   ```bash
-   npm install
-   git init
-   git add .
-   git commit -m "Build Home Project Planner MVP"
-   git branch -M main
-   git remote add origin https://github.com/jacobmgoodnight/home-project-planner.git
-   git push -u origin main
-   ```
+**GitHub Pages:** This repository is currently **private**. Pages support for private repositories depends on the owner's GitHub plan. Keep the repository private if you do not want to publish the code. If Pages is available:
 
-3. In **Settings → Pages → Build and deployment**, choose **GitHub Actions**. The included workflow validates tests + build and deploys `dist` automatically on pushes to `main`.
-4. Open `https://jacobmgoodnight.github.io/home-project-planner/` after the deployment completes.
+1. Open **Settings → Pages → Build and deployment** and select **GitHub Actions**.
+2. The included `.github/workflows/verify-deploy.yml` workflow installs dependencies, runs tests, checks TypeScript, builds the site, and deploys the `dist` directory from `main`.
+3. Open `https://jacobmgoodnight.github.io/home-project-planner/` **after** the Actions deployment has completed successfully.
 
-The Vite base path is set automatically when `GITHUB_PAGES=true` in CI. The PWA manifest and service worker use relative paths so installation works under the repository subpath.
+If the repository's private Pages option is unavailable, either use the local development/preview instructions above or explicitly decide to make the repository public. Do not publish any JSON exports or personal expense, repair, vehicle, or household details in the repository. The source contains fictional demo data only.
+
+To create a local production build, run `npm install` and `npm run build`. For a GitHub Pages-subpath preview, set `GITHUB_PAGES=true` while building.
 
 ## Money model and important limitations
 
