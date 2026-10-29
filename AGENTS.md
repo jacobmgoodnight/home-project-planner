@@ -85,3 +85,6 @@ Future inventory import may use a mapping `{sourceApp, sourceId, projectId, mate
 - **Deployed backend:** `rwqclcpmtuebxndadkxv` (shared with unrelated applications by explicit owner approval). Only modify `hpp_*` objects. Publishable key is public; never commit private credentials. Direct UPDATE on snapshots is denied; writes solely through checked `hpp_cas_snapshot`.
 - The production cloud URL/key are preconfigured as safe public browser values. No migration or account creation occurs during web app loading; user signs in and explicitly initializes the household.
 - Avoid unstable React callback references in the polling effect and always bind cloud-to-device after an explicit restore before offering automatic sync.
+
+- HouseholdSync is deliberately mounted at the App root (hidden outside Backup & data) so auto-sync continues while the user navigates other pages; do not return it to a conditionally mounted branch.
+- Supabase signup uses the GoTrue `redirect_to` query parameter; the actual URL still needs to be allowlisted in shared project's Auth Redirect URLs. Never remove existing apps' URL allowlist entries.

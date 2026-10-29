@@ -60,7 +60,8 @@ function toSession(data:unknown){
  write(SESSION,s);return s;
 }
 export async function signUpCloud(email:string,password:string){
- await api('/auth/v1/signup',{method:'POST',body:{email,password,options:{email_redirect_to:location.origin+location.pathname}}});
+ // GoTrue consumes redirect_to as an endpoint query parameter, not a nested JSON option.
+ await api('/auth/v1/signup?redirect_to='+encodeURIComponent(location.origin+location.pathname),{method:'POST',body:{email,password}});
 }
 export async function signInCloud(email:string,password:string){
  const data=await api('/auth/v1/token?grant_type=password',{method:'POST',body:{email,password}});

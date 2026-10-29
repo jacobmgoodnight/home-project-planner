@@ -130,6 +130,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
     <p className="subtle">The Home Project Planner SQL schema and row-level security rules must already be installed in this dedicated project.</p>
    </details></div>:
    !user?<div className="cloud-auth"><p>Use the same email and password on Windows and your phone. Creating an account may require email confirmation; your current local records remain untouched.</p>
+    <p className="subtle">If your confirmation link returns to a different app, add <code>https://jacobmgoodnight.github.io/home-project-planner/</code> to this Supabase project's Auth Redirect URLs.</p>
     <div className="form-grid"><label className="field"><span>Email</span><input type="email" value={email} autoComplete="username" onChange={e=>setEmail(e.target.value)}/></label>
     <label className="field"><span>Password</span><input type="password" value={password} autoComplete="current-password" onChange={e=>setPassword(e.target.value)}/></label></div>
     <div className="action-line"><button className="button primary" disabled={busy||!email||!password} onClick={signin}>Sign in</button><button className="button secondary" disabled={busy||!email||password.length<10} onClick={signup}>Create account</button><button className="small-btn" onClick={()=>{forgetCloud();setConfigured(false);}}>Change backend</button></div>

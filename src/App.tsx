@@ -190,15 +190,18 @@ export default function App(){
           <p className="results-note">{shown.length} project{shown.length===1?'':'s'} · Completed items are included in All · Under $100 uses remaining estimated cost</p>
           {shown.length?<div className="project-grid">{shown.map(p=><ProjectCard key={p.id} p={p} projects={db.projects} open={()=>edit(p.id)}/>)}</div>:<EmptyState title="No matching projects" body="Try a different filter or add a new project." action="Add project" onClick={create}/>}
         </>:page==='maintenance'?<MaintenanceView key={maintenanceFocus||equipmentDeepLink||'main'} equipmentDeepLink={equipmentDeepLink} focusId={maintenanceFocus} onOpenProject={edit} items={db.maintenance} projects={db.projects} equipment={db.equipment} change={fn=>patch(d=>({...d,maintenance:fn(d.maintenance)}))} changeEquipment={fn=>patch(d=>({...d,equipment:fn(d.equipment)}))} unlinkEquipment={id=>patch(d=>({...d,maintenance:d.maintenance.map(m=>m.equipmentId===id?{...m,equipmentId:''}:m)}))} />:
-          <div className="data-page"><div className="page-heading"><div><h1>Keep your plans safe.</h1><p>Your data lives in this browser, on this device, until you export it.</p></div></div>
-            <HouseholdSync data={db} onReplace={value=>{
-              if(validateBackup(value))patch(()=>value);
-              else statusNotice('Cloud copy failed validation; local data was not changed.');
-            }}/>
+          <div className="data-page"><div className="page-heading"><div><h1>Keep your plans safe.</h1><p>Your data starts in this browser, on this device. Optional household sync is available below.</p></div><a className="small-btn" href="#household-sync">Household sync ↓</a></div>
             <BackupTransfer data={db} lastEdit={lastEdit} lastExport={lastExport} onPrepared={noteExport} onReplace={replaceBackup} onMerge={mergeBackup}/>
             <section className="panel"><h2>Workspace controls</h2><p>Need an example before starting? Load fictional projects and comparisons. This replaces the current workspace.</p><div className="action-line"><button className="button secondary" onClick={()=>{if(window.confirm('Replace all current data with fictional demo projects? Export first if needed.')){patch(()=>demoData());setSelected(null);statusNotice('Fictional demo workspace loaded.');}}}>Load demo workspace</button><button className="button danger" onClick={()=>{if(window.confirm('Permanently remove ALL projects and maintenance records on this device? Export a backup first.')){patch(()=>emptyDatabase());setSelected(null);statusNotice('Local workspace cleared.');}}}>Clear all data</button></div></section>
             <section className="panel"><h2>How your data works</h2><ul className="help-list"><li>Stored in this browser’s IndexedDB database; GitHub Pages does not receive your records.</li><li>Different browsers, phones and private tabs have separate data. No automatic sync.</li><li>Clearing site data can erase your projects. Export regularly, especially before major changes.</li><li>Photos and PDFs are embedded in the JSON backup. Large attachments make backups larger.</li><li>For privacy, exports are created on-device. No bank access, purchase automation or shopping data collection.</li></ul></section>
           </div>}
+        {/* Remain mounted across all pages so automatic synchronization can run while the app is open. */}
+        <div hidden={page!=='data'} id="household-sync">
+          <HouseholdSync data={db} onReplace={value=>{
+            if(validateBackup(value))patch(()=>value);
+            else statusNotice('Cloud copy failed validation; local data was not changed.');
+          }}/>
+        </div>
       </main>
     </div>
     {showQuick&&<QuickCapture projects={db.projects} onCreate={quickCreate} onClose={()=>setShowQuick(false)}/>}
