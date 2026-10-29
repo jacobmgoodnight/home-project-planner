@@ -6,6 +6,7 @@ import { money, fromDollars, dollars, clamp, projectCost, decisionCost, sortProj
 import { attachmentFromFile, downloadBackup, load, readBackup, save, validateBackup } from './storage';
 import { demoData } from './demo';
 import { MAINTENANCE_PRESETS,createFromPreset,isPresetInstalled } from './maintenance-presets';
+import { MaintenancePartsEditor,MaintenanceShoppingPanel } from './MaintenanceParts';
 
 type Page = 'overview'|'projects'|'maintenance'|'data';
 type Filter = 'all'|'quick'|'cheap'|'overdue'|'waiting'|'month';
@@ -237,6 +238,7 @@ function MaintenanceView({items,projects,change}:{items:MaintenanceItem[];projec
   <div className="two-column"><section className="panel"><h2>Maintenance schedule</h2><div className="form-grid">
   <TextField label="Item / service"><input value={item.title} onChange={e=>patch(item.id,x=>({...x,title:e.target.value}))}/></TextField>
   <TextField label="Equipment / area"><input value={item.asset} onChange={e=>patch(item.id,x=>({...x,asset:e.target.value}))}/></TextField>
+  <TextField label="Equipment model (optional)"><input value={item.modelNumber||""} placeholder="Model number from appliance label" onChange={e=>patch(item.id,x=>({...x,modelNumber:e.target.value}))}/></TextField>
   <TextField label="Category"><Select value={item.category} onChange={v=>patch(item.id,x=>({...x,category:v as MaintenanceItem['category']}))} options={CATEGORIES}/></TextField>
   <TextField label="Linked project (optional)"><select value={item.projectId} onChange={e=>patch(item.id,x=>({...x,projectId:e.target.value}))}><option value="">None</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></TextField>
   <TextField label="Repeat every N calendar months" tip="1 = monthly · 4 = every four months · 12 = annually"><input type="number" min="0" max="120" value={item.intervalMonths??0} onChange={e=>patch(item.id,x=>({...x,intervalMonths:Math.min(120,num(e.target.value)),intervalDays:num(e.target.value)>0?0:x.intervalDays}))}/></TextField>
@@ -248,6 +250,7 @@ function MaintenanceView({items,projects,change}:{items:MaintenanceItem[];projec
   <TextField label="Instructions / notes"><textarea value={item.notes} rows={5} onChange={e=>patch(item.id,x=>({...x,notes:e.target.value}))}/></TextField>
   </div></section><div className="stack">
   <section className="panel"><h2>Next service</h2><div className="due-block"><Chip tone={state.tone}>{state.label}</Chip><h3>{due.dueDate?shortDate(due.dueDate):'No date scheduled yet'}</h3><p>{due.dueHours===null?'No usage interval':'Due at usage: '+due.dueHours}</p><p className="subtle">Enter the first due date or log the real last service date below. Following a completed service, recurrence counts from that completion date.</p></div></section>
+  <MaintenancePartsEditor key={item.id} item={item} change={parts=>patch(item.id,x=>({...x,supplies:parts}))}/>
   <section className="panel"><h2>Service history</h2><EntryRows<ServiceEntry> items={item.entries} onChange={rows=>patch(item.id,x=>({...x,entries:rows}))} addLabel="Log completed service" empty={()=>({id:uid(),date:today(),hours:item.currentHours,costCents:0,notes:''})} fields={[{key:'date',label:'Service date',kind:'date'},{key:'hours',label:'Usage at service',kind:'number'},{key:'costCents',label:'Paid',kind:'money'},{key:'notes',label:'Work done',wide:true}]}/></section>
   </div></div></div>;}
  return <div>
@@ -258,6 +261,7 @@ function MaintenanceView({items,projects,change}:{items:MaintenanceItem[];projec
    {(['Everyday home','Home equipment & outdoors','Only if installed'] as const).map(group=><div className="preset-group" key={group}><h3>{group}</h3><div className="preset-list">{MAINTENANCE_PRESETS.filter(p=>p.group===group).map(p=>{const installed=isPresetInstalled(p,items);return <label key={p.key} className={`preset-row ${installed?'already-added':''}`}><input type="checkbox" disabled={installed} checked={installed||picks.includes(p.key)} onChange={e=>setPicks(old=>e.target.checked?[...old,p.key]:old.filter(k=>k!==p.key))}/><span><strong>{p.title}</strong><small>{p.asset} · {p.months===1?'Monthly':`Every ${p.months} months`}{installed?' · Already added':''}</small></span></label>})}</div></div>)}
    <div className="preset-actions"><button className="button primary" disabled={count===0} onClick={installPresets}>Add {count} selected item{count===1?'':'s'}</button><span>Only selected tasks are stored, and no prior service is assumed.</span></div>
   </section>}
+  <MaintenanceShoppingPanel items={items} open={id=>{setNotice("");setSelected(id);}}/>
   {sorted.length?<div className="maintenance-list">{sorted.map(m=>{const d=dueMaintenance(m,today()),st=info(m);return <div key={m.id} className="maintenance-row"><button className="maintenance-card" onClick={()=>{setNotice('');setSelected(m.id);}}><span className="category-icon">{ICONS[m.category]}</span><span className="maintenance-title"><strong>{m.title}</strong><small>{m.asset||m.category} · {(m.intervalMonths??0)>0?`Every ${m.intervalMonths} mo`:m.intervalDays>0?`Every ${m.intervalDays} days`:'Usage/custom'}</small></span><span className="maintenance-when">{d.dueDate?shortDate(d.dueDate):'Set first date'}<Chip tone={st.tone}>{st.label}</Chip></span><span>→</span></button><button className="maintenance-complete" onClick={()=>markDone(m.id)}>✓ Done today</button></div>})}</div>:<EmptyState title="Start your home checklist" body="Choose suggested routines, then enter real due dates or service history. No sample maintenance is automatically imported." action="Choose household checklist" onClick={()=>setShowPresets(true)}/>}
   {!showPresets&&available.length>0&&items.length>0&&<button className="add-more-maintenance" onClick={()=>setShowPresets(true)}>+ Add more suggested routines</button>}
  </div>;

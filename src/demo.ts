@@ -19,5 +19,5 @@ export function demoData():Database {
   const display=sample('Winter light storage labels','Holiday Displays','Planned',85,1.5,'Label cords and splitters',1);
   display.tasks=[{id:uid(),title:'Print weatherproof labels',done:false,phase:'Prepare',dueDate:''}];
   const projector=sample('Projector filter cleaning','Electronics','Planned',30,1,'Check projector maintenance instructions',2);
-  return {version:1,demo:true,projects:[drain,car,display,projector],maintenance:[]};
+  return {version:2,demo:true,projects:[drain,car,display,projector],maintenance:[]};
 }
