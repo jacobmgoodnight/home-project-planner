@@ -4,12 +4,24 @@
 
 **Automated verification is not a substitute for testing on actual Windows/iPhone browsers or using two real signed-in Supabase users.** Do not mark unchecked manual tests as passed.
 
+## October 29 automated audit coverage
+
+- [x] Service-worker activation deletes only owned current/legacy caches; external-app navigation and unrelated same-origin API requests are not intercepted (simulated event tests).
+- [x] Revision-aware save queue serializes rapid writes, doesn't clear pending status early, reports storage failure and allows a later successful retry.
+- [x] Cloud record-diff helper categorizes local-only, cloud-only and differing records without auto-merging them.
+- [x] Under-$100 logic uses known remaining estimates even when project budget is unset; unknown cost is not guessed to be $0.
+- [x] Direct and indirect project dependency cycles are detected.
+- [x] Universal search indexes project actions, filter part numbers, model/serials and document filenames.
+- [ ] Real browser check: force IndexedDB quota failure, verify Retry and unload warning.
+- [ ] Real browser check: test one-step recovery from a local workspace replacement, and restore after reload.
+- [ ] Real browser check: verify cloud conflict export files and locally durable restore before cloud revision acceptance.
+
 ## Fresh local install and usability
 
 - [ ] Open without signing in; a new browser starts with no personal data. Demo workspace appears only by explicit choice.
 - [ ] Add equipment, project and maintenance routines via Guided setup; repeat setup without duplicate presets.
 - [ ] Quick add a project, a step to an existing project and a maintenance task; reload and check local persistence.
-- [ ] At 320px/mobile widths and with keyboard/VoiceOver, navigate Today, Projects, Maintenance and Backup & data without confusing overflow.
+- [ ] At 320, 375, 390 and 768px/mobile widths and with keyboard/VoiceOver, navigate Today, Projects, Maintenance and Backup & data without confusing overflow, including the revised collapsible project details and global search.
 - [ ] Install the PWA from the browser; after initial online load, reload while offline and confirm local records remain accessible.
 - [ ] Confirm new and old v1/v2/v3 backups restore correctly, invalid/corrupted JSON is rejected and files/receipts survive a round trip.
 

@@ -36,3 +36,13 @@
 - Verify the GitHub Actions `verify` **and** `deploy` jobs both succeeded on the latest main commit.
 - Review `docs/QA.md` for human tests; do not claim actual owner/member two-device testing without real signed-in accounts and recorded verification.
 - Keep `README.md`, `ROADMAP.md`, `docs/DATA_MODEL.md`, and `docs/QA.md` current on any release.
+
+
+## Reliability release guardrails
+
+- Service worker prefix `hpp-home-project-planner-`; activation may remove that prefix and the exact prior `home-project-planner-v1` through `v10` caches **only**. Never call delete on all other caches on the shared GitHub Pages origin. Cache interception requires same origin AND exact app registration scope; avoid arbitrary data requests.
+- `src/save-queue.mjs` is the source of truth for local save status. Only the latest successful revision may show a saved state; failed/pending writes must remain visible and trigger unload protection.
+- The recovery slot `previous-workspace` is stored in the same v3 IndexedDB object store; checkpoint before local destructive operations, abort if checkpoint fails, don't advertise it as a full backup history.
+- Cloud conflict UI is review-and-export only; never silently combine or discard divergent records. Persist imported cloud data locally before advancing its cloud revision.
+- Today search stays local, uses existing page navigation, and preserves four top-level navigation entries. Unknown project expenses are not $0; don't create circular dependencies.
+- Tests verify pure/isolated policies; manual signed-in two-device tests and visual accessibility checks remain pending.

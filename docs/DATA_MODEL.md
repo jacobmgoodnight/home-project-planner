@@ -53,3 +53,9 @@ After explicit household binding, the browser tracks the cloud revision/hash loc
 **Browser-origin caveat:** the other apps on the same `jacobmgoodnight.github.io` origin share a web security origin. Local IndexedDB and stored sessions are not a cryptographically isolated vault from any other script served under that origin.
 
 Potential external imports (e.g., Holiday Display Blueprint) require explicit user approval and provenance/deduplication; they do not occur automatically.
+
+## Local recovery and synchronization reliability (October 29, 2026)
+
+The IndexedDB `snapshots` object store continues to hold the primary v3 record under key `main`. One optional local **recovery checkpoint** (the same validated v3 shape) is saved under `previous-workspace` before a destructive restore, workspace clear, demo load or incoming cloud replacement. No schema version change or extra database is required. Restoring this previous copy also pauses cloud sync; on restoration the formerly current copy replaces the recovery slot. A checkpoint isn't a historical revision log and may be unavailable if storage is full.
+
+`src/save-queue.mjs` serializes writes to `main` and tracks the latest enqueued/committed revision. Older completions cannot display a misleading latest-save status; errors leave an unsaved warning until a newer write succeeds. `src/sync-diff.mjs` analyzes existing root records only and does not merge diverged records. The actual cloud JSON is written locally before its revision is accepted. Cloud and local backup size limits remain unchanged.
