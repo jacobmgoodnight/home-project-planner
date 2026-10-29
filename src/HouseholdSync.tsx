@@ -2,8 +2,8 @@ import {useCallback,useEffect,useRef,useState} from 'react';
 import type {Database} from './types';
 import {validateBackup} from './storage';
 import {cloudSettings,configureCloud,forgetCloud,getCloudSession,getSession,signInCloud,signUpCloud,signOutCloud,
- listHomes,createHome,createInvite,joinHome,fetchSnapshot,uploadSnapshot,snapshotHash,readAnchor,setAnchor,bindLocalHome,localBoundToHome} from './cloud-client';
-import type {HomeLink,CloudSnapshot} from './cloud-client';
+ listHomes,createHome,createInvite,joinHome,listMembers,removeMember,fetchSnapshot,uploadSnapshot,snapshotHash,readAnchor,setAnchor,bindLocalHome,localBoundToHome} from './cloud-client';
+import type {HomeLink,CloudSnapshot,MemberInfo} from './cloud-client';
 
 export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapshot:Database)=>void}){
  const [configured,setConfigured]=useState(!!cloudSettings());
@@ -11,6 +11,7 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
  const [email,setEmail]=useState(''),[password,setPassword]=useState('');
  const [user,setUser]=useState(getCloudSession()?.user.email||'');
  const [homes,setHomes]=useState<HomeLink[]>([]);
+ const [members,setMembers]=useState<MemberInfo[]>([]);
  const [home,setHome]=useState(()=>{try{return localStorage.getItem('hpp-selected-home')||'';}catch{return '';}});
  const [houseName,setHouseName]=useState('Our home'),[invite,setInvite]=useState(''),[inviteCode,setInviteCode]=useState('');
  const [status,setStatus]=useState(''),[busy,setBusy]=useState(false),[conflict,setConflict]=useState(false);
@@ -86,6 +87,11 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
  async function generateInvite(){await run(async()=>{
   const code=await createInvite(home);setInvite(code);setStatus('One-use invite generated, valid for 7 days. Share the code privately.');
  });}
+ async function loadMembers(){await run(async()=>{setMembers(await listMembers(home));});}
+ async function revokeMember(member:MemberInfo){
+  if(!window.confirm('Remove '+member.member_email+' from this household? This prevents future cloud access but cannot erase records already copied to their device.'))return;
+  await run(async()=>{await removeMember(home,member.member_user_id);setMembers(await listMembers(home));setStatus('Member access revoked for future cloud requests.');});
+ }
  async function initializeUpload(){await run(async()=>{
   if(!home)return;
   const remote=await refresh();if(!remote||remote.document!==null){setStatus('Cloud already contains records. Review the cloud copy first.');return;}
@@ -139,7 +145,8 @@ export function HouseholdSync({data,onReplace}:{data:Database;onReplace:(snapsho
        {conflict&&<p className="transfer-warning">Conflict detected. Automatic synchronization is paused for this version until you choose which copy to keep. Export a backup before resolving.</p>}
      </div>}
      <details className="cloud-sharing"><summary>Household sharing and invitations</summary>
-       {homes.find(h=>h.household_id===home)?.role==='owner'&&<><p className="subtle">Share one-use invite codes privately with other adults. They must create an account before joining.</p><button className="button secondary" disabled={busy} onClick={generateInvite}>Generate 7-day invite code</button>{invite&&<div className="cloud-invite"><code>{invite}</code><button className="small-btn" onClick={()=>void navigator.clipboard.writeText(invite).then(()=>setStatus('Invite code copied.'))}>Copy code</button></div>}</>}
+       {homes.find(h=>h.household_id===home)?.role==='owner'&&<><p className="subtle">Share one-use invite codes privately with other adults. They must create an account before joining.</p><button className="button secondary" disabled={busy} onClick={generateInvite}>Generate 7-day invite code</button>{invite&&<div className="cloud-invite"><code>{invite}</code><button className="small-btn" onClick={()=>void navigator.clipboard.writeText(invite).then(()=>setStatus('Invite code copied.'))}>Copy code</button></div>}
+      <div className="cloud-members"><button className="small-btn" disabled={busy} onClick={loadMembers}>View household members</button>{members.map(m=><div key={m.member_user_id}><span>{m.member_email} ({m.member_role})</span>{m.member_role!=='owner'&&<button className="small-btn danger-text" disabled={busy} onClick={()=>revokeMember(m)}>Remove access</button>}</div>)}</div></>}
        <p className="subtle">Already have a code from another household owner?</p><input aria-label="Invite code" placeholder="Paste 48-character invitation code" value={inviteCode} onChange={e=>setInviteCode(e.target.value)}/><button className="button secondary" disabled={busy||!inviteCode.trim()} onClick={join}>Join with code</button>
      </details>
     </>:<div className="cloud-first"><h3>Start a private household</h3><input aria-label="Household name" value={houseName} onChange={e=>setHouseName(e.target.value)} maxLength={100}/><button className="button primary" disabled={busy||!houseName.trim()} onClick={create}>Create household</button>

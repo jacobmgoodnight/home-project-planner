@@ -78,6 +78,13 @@ export async function listHomes():Promise<HomeLink[]>{
  const names=await api('/rest/v1/hpp_households?select=id,name',{secure:true}) as {id:string;name:string}[];
  return rows.map(r=>({...r,name:names.find(n=>n.id===r.household_id)?.name||'My home'}));
 }
+export type MemberInfo={member_user_id:string;member_email:string;member_role:'owner'|'member'};
+export async function listMembers(homeId:string){
+ return await api('/rest/v1/rpc/hpp_list_members',{method:'POST',secure:true,body:{p_household:homeId}}) as MemberInfo[];
+}
+export async function removeMember(homeId:string,userId:string){
+ await api('/rest/v1/rpc/hpp_remove_member',{method:'POST',secure:true,body:{p_household:homeId,p_user:userId}});
+}
 export async function createHome(name:string){return await api('/rest/v1/rpc/hpp_create_household',{method:'POST',secure:true,body:{p_name:name}}) as string;}
 function hashBytes(bytes:ArrayBuffer){return Array.from(new Uint8Array(bytes)).map(b=>b.toString(16).padStart(2,'0')).join('');}
 export async function hashInvite(code:string){return hashBytes(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(code.trim())));}

@@ -93,6 +93,36 @@ begin
  return v_household;
 end;
 $$;
+
+-- Owner-only member management. Revoking access cannot erase copies already downloaded by a device.
+create or replace function public.hpp_list_members(p_household uuid)
+returns table(member_user_id uuid, member_email text, member_role text)
+language plpgsql security definer set search_path = ''
+as $
+begin
+ if (select auth.uid()) is null then raise exception 'Sign in first'; end if;
+ if not exists(select 1 from public.hpp_members m where m.household_id=p_household and m.user_id=(select auth.uid()) and m.role='owner')
+ then raise exception 'Only the household owner can view member email addresses'; end if;
+ return query select m.user_id,u.email::text,m.role from public.hpp_members m
+ join auth.users u on u.id=m.user_id where m.household_id=p_household order by m.joined_at;
+end;
+$;
+create or replace function public.hpp_remove_member(p_household uuid,p_user uuid)
+returns void language plpgsql security definer set search_path = ''
+as $
+begin
+ if (select auth.uid()) is null then raise exception 'Sign in first'; end if;
+ if not exists(select 1 from public.hpp_members m where m.household_id=p_household and m.user_id=(select auth.uid()) and m.role='owner')
+ then raise exception 'Only the owner may remove members'; end if;
+ if p_user=(select auth.uid()) then raise exception 'The owner cannot remove their own account'; end if;
+ delete from public.hpp_members where household_id=p_household and user_id=p_user and role='member';
+end;
+$;
+revoke all on function public.hpp_list_members(uuid) from public,anon;
+revoke all on function public.hpp_remove_member(uuid,uuid) from public,anon;
+grant execute on function public.hpp_list_members(uuid) to authenticated;
+grant execute on function public.hpp_remove_member(uuid,uuid) to authenticated;
+
 -- Optimistic CAS, operating under the caller's own RLS (no privilege escalation).
 create or replace function public.hpp_cas_snapshot(p_household uuid,p_revision bigint,p_document jsonb)
 returns bigint language plpgsql security invoker set search_path = ''
