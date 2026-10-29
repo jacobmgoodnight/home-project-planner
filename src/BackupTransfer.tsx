@@ -7,7 +7,7 @@ import {validateBackup} from './storage';
 
 const format=(timestamp:number)=>timestamp?new Date(timestamp).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric'}):'Not recorded on this device';
 
-export function BackupTransfer({data,lastEdit,lastExport,onPrepared,onReplace,onMerge}:{data:Database;lastEdit:number;lastExport:number;onPrepared:()=>void;onReplace:(next:Database)=>void;onMerge:(next:Database)=>void}) {
+export function BackupTransfer({data,lastEdit,lastExport,onPrepared,onReplace,onMerge}:{data:Database;lastEdit:number;lastExport:number;onPrepared:()=>void;onReplace:(next:Database)=>Promise<void>;onMerge:(next:Database)=>void}) {
  const [incoming,setIncoming]=useState<Database|null>(null),[fileName,setFileName]=useState('');
  const [error,setError]=useState(''),[notice,setNotice]=useState('');
  const [shareBusy,setShareBusy]=useState(false);
@@ -35,10 +35,14 @@ export function BackupTransfer({data,lastEdit,lastExport,onPrepared,onReplace,on
   try{const parsed=await readBackup(file);if(!validateBackup(parsed))throw new Error('Invalid backup.');setIncoming(parsed);setFileName(file.name);}
   catch(e){setError(e instanceof Error?e.message:'Unable to read backup.');}
  }
- function replace(){
+ async function replace(){
   if(!incoming)return;
-  if(!window.confirm('Replace ALL data on this device with '+fileName+'? This deletes any local-only changes. Export this device first.'))return;
-  onReplace(incoming);setIncoming(null);setFileName('');setNotice('Backup restored. Changes will be saved on this device.');
+  if(!window.confirm('Replace ALL data on this device with '+fileName+'? This discards current local-only changes. Export this device first.'))return;
+  setError('');
+  try{
+   await onReplace(incoming);
+   setIncoming(null);setFileName('');setNotice('Backup restored. Your previous workspace has a recovery checkpoint under Workspace controls.');
+  }catch(e){setError(e instanceof Error?e.message:'Could not replace local workspace. Nothing was changed.');}
  }
  function merge(){
   if(!incoming||!preview||preview.addCount===0)return;

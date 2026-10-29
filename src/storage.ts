@@ -4,6 +4,7 @@ import { upgradeSnapshot } from './maintenance-support.mjs';
 const DB_NAME = 'home-project-planner-v1';
 const STORE = 'snapshots';
 const KEY = 'main';
+const RECOVERY_KEY = 'previous-workspace';
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve,reject)=>{
@@ -36,6 +37,20 @@ export async function load():Promise<Database|null> {
   const migrated=upgradeSnapshot(stored);
   if(!validateBackup(migrated))throw new Error('Stored data has an unsupported or damaged format. No changes were made.');
   return migrated;
+}
+/** Keep one local checkpoint so a destructive local replacement can be reversed. */
+export async function saveRecoverySnapshot(value:Database):Promise<void>{
+ if(!validateBackup(value))throw new Error('Cannot checkpoint invalid local records.');
+ await transaction<void>('readwrite',(store,done)=>{store.put(value,RECOVERY_KEY);done(undefined);});
+}
+export async function loadRecoverySnapshot():Promise<Database|null>{
+ const raw=await transaction<unknown>('readonly',(store,done)=>{
+  const request=store.get(RECOVERY_KEY);request.onsuccess=()=>done(request.result??null);
+ });
+ if(raw===null)return null;
+ const upgraded=upgradeSnapshot(raw);
+ if(!validateBackup(upgraded))throw new Error('Stored recovery checkpoint is invalid.');
+ return upgraded;
 }
 export async function save(value:Database):Promise<void> {
   return transaction<void>('readwrite',(store,done)=>{
