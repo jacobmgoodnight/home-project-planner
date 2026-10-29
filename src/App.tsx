@@ -15,6 +15,8 @@ import { TodayDashboard } from './TodayDashboard';
 import { HomeReminders } from './HomeReminders';
 import { HouseholdSync } from './HouseholdSync';
 import { pauseSyncForLocalReplace } from './cloud-client';
+import { createSaveQueue } from './save-queue.mjs';
+import type { SaveQueue } from './save-queue.mjs';
 import { GuidedSetup } from './GuidedSetup';
 import { QuickCapture } from './QuickCapture';
 import type { QuickCaptureRequest } from './QuickCapture';
@@ -59,6 +61,7 @@ export default function App(){
   const [fatal,setFatal]=useState('');
   const [saveError,setSaveError]=useState('');
   const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
   const [page,setPage]=useState<Page>(()=>new URLSearchParams(location.search).has('equipment')?'maintenance':'overview');
   const [equipmentDeepLink]=useState(()=>new URLSearchParams(location.search).get('equipment')||'');
   const [selected,setSelected]=useState<string|null>(null);
@@ -73,21 +76,35 @@ export default function App(){
   const [lastEdit,setLastEdit]=useState(()=>{try{return Number(localStorage.getItem('hpp-last-edit')||0);}catch{return 0;}});
   const [lastExport,setLastExport]=useState(()=>{try{return Number(localStorage.getItem('hpp-last-export')||0);}catch{return 0;}});
   function noteExport(){const timestamp=Date.now();setLastExport(timestamp);try{localStorage.setItem('hpp-last-export',String(timestamp));}catch{/* browser storage may be restricted */}}
-  const pending=useRef(Promise.resolve());
   const ready=useRef(false);
   const mounted=useRef(true);
+  const queue=useRef<SaveQueue<Database>|null>(null);
+  if(!queue.current)queue.current=createSaveQueue<Database>(save,event=>{
+    if(!mounted.current)return;
+    setSaving(event.state==='saving');
+    setSaved(event.state==='saved');
+    setSaveError(event.state==='error'?
+      'Local save failed: '+event.error+'. Your latest edits may not survive a reload. Export a backup and retry saving.':'');
+  });
   useEffect(()=>{mounted.current=true;load().then(value=>{
     if(value&&!validateBackup(value))throw new Error('Stored data has an unsupported or damaged format. No changes were made.');
     if(mounted.current){ready.current=true;setDb(value||emptyDatabase());}
   }).catch(e=>setFatal(String(e.message||e)));return ()=>{mounted.current=false;};},[]);
   useEffect(()=>{
     if(!ready.current||!db)return;
-    setSaving(true);
-    const snapshot=db;
-    pending.current=pending.current.catch(()=>{}).then(()=>save(snapshot)).then(()=>{
-      if(mounted.current){setSaving(false);setSaveError('');}
-    }).catch((e:unknown)=>{if(mounted.current){setSaving(false);setSaveError(`Local save failed: ${String(e)}. Export a backup before leaving.`);}});
+    // Writes are serialized; only the last committed revision may display "Saved".
+    void queue.current?.enqueue(db).catch(()=>{});
   },[db]);
+  useEffect(()=>{
+    const warn=(event:BeforeUnloadEvent)=>{
+      if(queue.current?.needsUnloadWarning()){
+        event.preventDefault();
+        event.returnValue='';
+      }
+    };
+    window.addEventListener('beforeunload',warn);
+    return()=>window.removeEventListener('beforeunload',warn);
+  },[]);
   const patch=(fn:(current:Database)=>Database)=>{
     const timestamp=Date.now();setLastEdit(timestamp);
     try{localStorage.setItem('hpp-last-edit',String(timestamp));}catch{/* IndexedDB remains authoritative */}
@@ -166,10 +183,10 @@ export default function App(){
       <div className="side-note"><span className="status-dot"/> Offline-first workspace<small>Optional private household sync</small></div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div className="top-left"><span className="top-kicker">PERSONAL WORKSPACE</span><span className="top-title">{page==='overview'?'Today':page==='projects'?'Projects':page==='maintenance'?'Maintenance':'Backup & data'}</span></div><div className="top-actions"><span className="save-indicator">{saveError?'⚠ Save error':saving?'Saving…':'✓ Local save'}</span><button className="button primary" onClick={()=>setShowQuick(true)}>+ Quick add</button></div></header>
+      <header className="topbar"><div className="top-left"><span className="top-kicker">PERSONAL WORKSPACE</span><span className="top-title">{page==='overview'?'Today':page==='projects'?'Projects':page==='maintenance'?'Maintenance':'Backup & data'}</span></div><div className="top-actions"><span className="save-indicator">{saveError?'⚠ Save error':saving?'Saving…':saved?'✓ Saved locally':'Preparing save…'}</span><button className="button primary" onClick={()=>setShowQuick(true)}>+ Quick add</button></div></header>
       <main className="content">
         {db.demo&&<div className="demo-banner"><strong>Sample workspace</strong> — These are fictional projects and amounts. Start fresh under Backup & data before entering personal information. <button onClick={()=>navigate('data')}>Manage sample data</button></div>}
-        {saveError&&<div role="alert" className="alert error">{saveError} <button onClick={()=>downloadBackup(db)}>Export now</button></div>}
+        {saveError&&<div role="alert" className="alert error">{saveError} <button onClick={()=>downloadBackup(db)}>Export backup</button> <button onClick={()=>{void queue.current?.enqueue(db).catch(()=>{});}}>Retry save</button></div>}
         {flash&&<div role="status" className="alert">{flash}<button onClick={()=>setFlash('')}>Dismiss</button></div>}
         {selected&&project?<ProjectEditor key={project.id} project={project} allProjects={db.projects} tab={editorTab} setTab={setEditorTab} patch={fn=>patchProject(project.id,fn)} back={()=>setSelected(null)} remove={()=>deleteProject(project)} alert={statusNotice}/>:
         page==='overview'?<>
