@@ -9,11 +9,17 @@
     "preview": "vite preview",
     "test": "node --test tests/*.test.mjs",
     "check": "npm run test && npm run typecheck:logic && npm run build",
-    "typecheck:logic": "tsc -p tsconfig.logic.json"
+    "typecheck:logic": "tsc -p tsconfig.logic.json",
+    "ios:add": "npm run build && npx cap add ios && npx cap sync ios",
+    "ios:sync": "npm run build && npx cap sync ios",
+    "ios:open": "npx cap open ios"
   },
   "dependencies": {
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/local-notifications": "^8.3.1"
   },
   "devDependencies": {
     "@types/react": "^19.1.10",
@@ -21,6 +27,7 @@
     "@vitejs/plugin-react": "^4.7.0",
     "typescript": "~5.9.2",
     "vite": "^6.3.5",
-    "@types/node": "^22.15.30"
+    "@types/node": "^22.15.30",
+    "@capacitor/cli": "^8.5.3"
   }
 }
