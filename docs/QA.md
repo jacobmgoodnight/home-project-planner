@@ -67,3 +67,11 @@
 Browser local data and auth sessions share the `jacobmgoodnight.github.io` origin with other apps. Only serve trusted code from that origin. Maintain private backup copies; sync is not a historical backup and can pause on conflict. Do not put credentials or household exports in public GitHub.
 
 Supabase Auth redirect URLs are shared by all applications on the same Supabase project. **Add** the Home Project Planner URL if needed; never remove another app's allowed redirects.
+
+## iOS preview: pending real-device tests
+
+- [ ] Generate Xcode project on Mac and install using the free Personal Team.
+- [ ] Verify backup import and optional authenticated household sync in the native WebView origin.
+- [ ] Test local alert permissions, 9AM delivery with app closed, and cancellation after due-date edits and disabling.
+- [ ] Verify camera/PDF file handling, backup export, links, and iOS share sheet.
+- [ ] Verify DST/time-zone behavior, and clear descriptions of no continuous background sync.
