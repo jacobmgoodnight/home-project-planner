@@ -58,3 +58,11 @@ Bank access, automatic purchases, AI-generated prices/repair estimates, compulso
 ## Release requirements
 
 Run `npm run check`, inspect the actual GitHub Pages deployment, validate v1/v2/v3 import behavior, and complete the relevant manual checks in [docs/QA.md](docs/QA.md). Never populate demo data without an explicit user action or silently overwrite existing IndexedDB or cloud records.
+## Native iPhone preview
+
+- [x] Capacitor configuration and source path to Xcode, without replacing GitHub Pages.
+- [x] Opt-in local scheduled notification planning and tests.
+- [ ] Generate/build iOS project and validate on real iPhone using free Personal Team.
+- [ ] Test signed-in household sync, files, backups, and notifications on device.
+- [ ] Native QR scanning and equipment lookup after reliable first build.
+- [ ] TestFlight only after explicit Apple Developer membership enrollment.

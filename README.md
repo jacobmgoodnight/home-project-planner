@@ -130,3 +130,6 @@ The existing GitHub Actions workflow runs unit tests, logic type-checking, the T
 - `tests/*.test.mjs`: domain tests; [docs/QA.md](docs/QA.md) tracks device and account acceptance tests.
 
 **Current next priority:** verify real cross-device login, data round-trip, and simultaneous offline conflict handling before adding more functionality. See the [roadmap](ROADMAP.md) for the short list.
+## Optional iPhone native preview
+
+An experimental Capacitor iOS integration adds opt-in local scheduled maintenance and warranty notifications while preserving the GitHub Pages web app. Install directly with Xcode and a free Apple Personal Team; provisioning expires after seven days. This is not a TestFlight build and real iPhone behavior is not yet verified. The native app has independent local data, so back up and import your browser projects or carefully confirm optional household sync before using it. See [iPhone installation and test instructions](docs/IOS_FREE_BUILD.md).
