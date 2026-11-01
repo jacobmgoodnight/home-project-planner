@@ -46,3 +46,9 @@
 - Cloud conflict UI is review-and-export only; never silently combine or discard divergent records. Persist imported cloud data locally before advancing its cloud revision.
 - Today search stays local, uses existing page navigation, and preserves four top-level navigation entries. Unknown project expenses are not $0; don't create circular dependencies.
 - Tests verify pure/isolated policies; manual signed-in two-device tests and visual accessibility checks remain pending.
+
+## iOS native preview safeguards
+
+- Capacitor must package bundled dist/ assets without a remote server URL; no signing credentials or private household data in Git.
+- Local notifications are opt-in, derived only from real saved maintenance/warranty dates, limited to 48 scheduled alerts, and updated when app opens/changes. Browser reminders remain foreground-only.
+- Native WebView IndexedDB is distinct from Safari/PWA data. Do not automatically replace cloud copies. Physical Xcode/iPhone verification is still pending.
